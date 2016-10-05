@@ -17,7 +17,7 @@ unsigned char buggyBoardInit(void){
 	err=i2cInit("/dev/i2c-2");
 	err+=configPWMdevice();
 	err+=configGPIOdevice();
-
+	DCmotorState(1);						// Set the HDRIVER ON
 	if(err)
 		return 0;
 	else return 1;
@@ -32,17 +32,13 @@ unsigned char buggyBoardInit(void){
 void DCmotorState(unsigned char state){
 	unsigned char MCP2308_GPIO_STATE;
 
-	i2cSelectSlave(MCP2308);
+	i2cSelectSlave(MCP2308);							// Read the actual GPIOs value on the MCP23008 Port
 	MCP2308_GPIO_STATE=i2cReadByte(0x09);
-
-	//SMB_Read(MCP2308, 0x09);                     		// Read the actual GPIOs value on the MCP23008 Port
-	//MCP2308_GPIO_STATE=SMB_DATA_IN[0];
 
 	if(state) MCP2308_GPIO_STATE |= 0x10;				// Driver ON
 	else MCP2308_GPIO_STATE &= 0xEF;					// Driver OFF
 
-	i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
-	//SMB_Write(MCP2308, 0x0A, MCP2308_GPIO_STATE);       // Initiate SMBus write
+	i2cWriteByte(0x0A, MCP2308_GPIO_STATE);				// Initiate SMBus write
 }
 
 //================================================================================
@@ -65,10 +61,8 @@ void DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle){
 	PowerHigh = (power&0x0F00) >>8;
 
 	i2cSelectSlave(PCA9680);
-	i2cWriteByte(motorAdr, PowerLow);
+	i2cWriteByte(motorAdr, PowerLow);										// Set the speed of the motor selected
 	i2cWriteByte(motorAdr+1, PowerHigh);
-	//SMB_Write(PCA9680, motorAdr, PowerLow);                    			// Set the speed of the motor selected
-	//SMB_Write(PCA9680, motorAdr+1, PowerHigh);                  		//
 }
 
 //================================================================================
@@ -81,19 +75,14 @@ void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 
 	// Read the actual GPIOs value on the MCP23008 Port
 	i2cSelectSlave(MCP2308);
-	MCP2308_GPIO_STATE=i2cReadByte(0x09);
 
 	// Read the actual GPIOs value on the MCP23008 Port
-	//SMB_Read(MCP2308, 0x09);
-	////for(test=0;test<5000;test++);
-	////MCP2308_GPIO_STATE=SMB_DATA_IN[0];
+	MCP2308_GPIO_STATE=i2cReadByte(0x09);
 
 	//	ACTION FOR MOTOR 0
 	if(motorAdr==DCM0){
 		MCP2308_GPIO_STATE &= 0xF9;						// Force H-Bridge Off for motor 0
-
 		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
-		//SMB_Write(MCP2308, 0x0A, MCP2308_GPIO_STATE);   // Apply the new value on the GPIO driver,
 
 		switch(direction){
 			case MCW 	 :  MCP2308_GPIO_STATE |= 0x02; break;			// Select rotary sens
@@ -101,8 +90,8 @@ void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;			// No sens selected, H-BRIDGE off
 			default		 : ;break;
 		}
-		//SMB_Write(MCP2308, 0x0A, MCP2308_GPIO_STATE);   				// Apply the new value on the GPIO driver for sens of motor
-		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
+
+		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver for sens of motor
 	}
 
 //	ACTION FOR MOTOR 1
@@ -111,8 +100,7 @@ void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 
 		// Read the actual GPIOs value on the MCP23008 Port
 		i2cSelectSlave(MCP2308);
-		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
-		//SMB_Write(MCP2308, 0x0A, MCP2308_GPIO_STATE);   				// Apply the new value on the GPIO driver,
+		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver,
 
 		switch(direction){
 			case MCW 	 :  MCP2308_GPIO_STATE |= 0x01; break;			// Select rotary sens
@@ -120,8 +108,8 @@ void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;			// No sens selected, H-BRIDGE off
 			default		 : ;break;
 		}
-		//SMB_Write(MCP2308, 0x0A, MCP2308_GPIO_STATE);   				// Apply the new value on the GPIO driver for sens of motor
-		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
+
+		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver for sens of motor
 	}
 
 }
@@ -149,10 +137,8 @@ void setServoPos(unsigned char smAddr, unsigned char position){
 
 //	ACTION FOR MOTOR 1
 	i2cSelectSlave(PCA9680);
-	i2cWriteByte(smAddr, dCLow);
+	i2cWriteByte(smAddr, dCLow);							// Set the speed of the motor
 	i2cWriteByte(smAddr+1, dCHigh);
-	//SMB_Write(PCA9680, smAddr, dCLow);                     // Set the speed of the motor
-	//SMB_Write(PCA9680, smAddr+1, dCHigh);                  //
 }
 //================================================================================
 // CONFIGPWMDEVICE
@@ -200,17 +186,14 @@ unsigned char configPWMdevice(void){
 unsigned char configGPIOdevice(void){
 	unsigned char err;
 
-	err=i2cSelectSlave(PCA9680);
+	err=i2cSelectSlave(MCP2308);
 
 	// No auto-incrementation
 	i2cWriteByte(0x05, 0x20);
-	//SMB_Write(MCP2308, 0x05, 0x20);                     // Initiate SMBus write
 	// Pull up enable
 	i2cWriteByte(0x06, 0xFF);
-	//SMB_Write(MCP2308, 0x06, 0xFF);                     // Initiate SMBus write
 	// Pin as output
 	i2cWriteByte(0x00, 0x00);
-	//SMB_Write(MCP2308, 0x00, 0x00);                     // Initiate SMBus write
 	return err;
 }
 
@@ -232,13 +215,12 @@ int setMotor(int motorName, int direction, int ratio){
 		ratio = 0;
 
 	switch(motorName){
-		case WHEEL_LEFT : 	motorAdress = LED0; break;
-		case WHEEL_RIGHT :  motorAdress = LED1; break;
+		case WHEEL_LEFT : 	motorAdress = DCM0; break;
+		case WHEEL_RIGHT :  motorAdress = DCM1; break;
 		default : return(0);
 	}
 	// Set the PWM speed of the motor
 	DCmotorSetSpeed(motorAdress, ratio);
-
 
 	switch(direction){
 		case BUGGY_FORWARD :	motorAction = MCW; break;

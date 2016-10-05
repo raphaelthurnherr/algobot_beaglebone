@@ -38,8 +38,10 @@ unsigned char i2cSelectSlave(unsigned char slaveAddress){
 			 /* ERROR HANDLING; you can check errno to see what wen$*/
 			 return (1);
 	}
-    else
+    else{
+    	usleep(10000);
     	return (0);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +50,7 @@ unsigned char i2cSelectSlave(unsigned char slaveAddress){
 extern int i2cReadByte(unsigned char regAddress){
 	unsigned char result;
 	result = i2c_smbus_read_byte_data(file, regAddress);
+	usleep(10000);
      if (result < 0) {
        /* ERROR HANDLING: i2c transaction failed */
     	 return -1;
@@ -62,4 +65,5 @@ extern int i2cReadByte(unsigned char regAddress){
 // ---------------------------------------------------------------------------
 int i2cWriteByte(unsigned char regAddress, unsigned char data){
 	i2c_smbus_write_byte_data(file, regAddress, data);
+	usleep(10000);
 }

@@ -52,8 +52,6 @@ int main(void) {
 		sendMqttReport(0,"# Initialisation carte HW: ERREUR\n");
 	}
 
-	DCmotorState(1);
-
 	while(1){
 		int kbInput;
 //		kbInput = mygetch();
