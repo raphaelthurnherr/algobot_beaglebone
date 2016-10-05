@@ -12,12 +12,10 @@
 #include "algoidCom/messagesManager.h"
 #include "algoidCom/linux_json.h"
 #include "algoidCom/udpPublish.h"
-#include "hwGpio/hw_ctrl.h"
+#include "hwControl/boardHWctrl.h"
 #include "tools.h"
 #include "algoid_2wd_buggy.h"
 #include "timerManager.h"
-#include <i2c-dev.h>
-#include "bbb_i2c.h"
 
 int ActionTable[10][3];
 
@@ -45,24 +43,16 @@ int main(void) {
 	// Initialisation UDP pour broadcast IP Adresse
 	initUDP();
 
-	// Initialisation GPIO pour commande moteur
-	if(GpioSetup()){
-		printf("# Initialisation hardware: OK\n");
-		sendMqttReport(0,"# Initialisation hardware: OK\n");
+	if(buggyBoardInit()){
+		printf("# Initialisation carte HW: OK\n");
+		sendMqttReport(0,"# Initialisation carte HW: OK\n");
 	}
 	else{
-		printf("# Initialisation hardware: ERREUR\n");
-		sendMqttReport(0,"# Initialisation hardware: ERREUR\n");
+		printf("# Initialisation carte HW: ERREUR\n");
+		sendMqttReport(0,"# Initialisation carte HW: ERREUR\n");
 	}
 
-	if(i2cInit("/dev/i2c-2")){
-		printf("# Initialisation I2C BUS: OK\n");
-		sendMqttReport(0,"# Initialisation hardware: OK\n");
-	}
-	else{
-		printf("# Initialisation I2C BUS: ERREUR\n");
-		sendMqttReport(0,"# Initialisation I2C BUS: ERREUR\n");
-	}
+	DCmotorState(1);
 
 	while(1){
 		int kbInput;
@@ -85,23 +75,14 @@ int main(void) {
     		char udpMessage[50];
     		sprintf(&udpMessage[0], "[ %s ] I'm here",ClientID);
     		sendUDPHeartBit(udpMessage);
-		    printf("\n MYMAC %s", getMACaddr());
+		    //printf("\n MYMAC %s", getMACaddr());
 		    timer10s=0;
-		    //bla();
-		    unsigned char test, i;
-		    i2cSelectSlave(0x40);
-		    for(i=0xfe;i<0xff;i++){
-		    	test = i2cReadByte(i);
-		    	printf("#%d : %x\n", i, test);
-		    }
-		    i2cWriteByte(0xFE, 0xAA);
     	}
 
     	timer10s++;
     	usleep(100000);
 	}
 
-	GpioClose();
 	int endState=CloseMessager();
 	if(!endState)
 		  printf( "# ARRET tache Messager - status: %d\n", endState);
@@ -160,8 +141,10 @@ int make2WDaction(void){
 int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 	int myDirection;
 
-	if(veloc > 0) myDirection=BUGGY_FORWARD;
-	if(veloc == 0) myDirection=BUGGY_STOP;
+	if(veloc > 0)
+		myDirection=BUGGY_FORWARD;
+	if(veloc == 0)
+		myDirection=BUGGY_STOP;
 
 	if(veloc < 0){
 		myDirection=BUGGY_BACK;
@@ -193,7 +176,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 // -------------------------------------------------------------------
 int endWheelAction(int actionNumber, int wheelNumber){
 	int result;
-	//printf("Action number: %d - End of timer for wheel No: %d\n",actionNumber , wheelNumber);
+	printf("Action number: %d - End of timer for wheel No: %d\n",actionNumber , wheelNumber);
 
 	// Stop le moteur
 	setMotor(wheelNumber,BUGGY_STOP, 0);
