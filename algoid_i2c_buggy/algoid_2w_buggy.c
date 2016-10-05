@@ -145,10 +145,9 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 		myDirection=BUGGY_FORWARD;
 	if(veloc == 0)
 		myDirection=BUGGY_STOP;
-
 	if(veloc < 0){
 		myDirection=BUGGY_BACK;
-		veloc *=-1;
+		veloc *=-1;					// Convert speed to positiva value
 	}
 
 	// Start timer and set callbackback function with arg for stop
@@ -176,7 +175,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 // -------------------------------------------------------------------
 int endWheelAction(int actionNumber, int wheelNumber){
 	int result;
-	printf("Action number: %d - End of timer for wheel No: %d\n",actionNumber , wheelNumber);
+	//printf("Action number: %d - End of timer for wheel No: %d\n",actionNumber , wheelNumber);
 
 	// Stop le moteur
 	setMotor(wheelNumber,BUGGY_STOP, 0);
