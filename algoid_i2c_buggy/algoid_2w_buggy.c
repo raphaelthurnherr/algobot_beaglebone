@@ -73,8 +73,13 @@ int main(void) {
     		char udpMessage[50];
     		sprintf(&udpMessage[0], "[ %s ] I'm here",ClientID);
     		sendUDPHeartBit(udpMessage);
-		    //printf("\n MYMAC %s", getMACaddr());
+		  // printf("\n MYMAC %s", getMACaddr());
 		    timer10s=0;
+    	}
+
+    	if(checkMotorPowerFlag){
+			checkDCmotorPower();
+			checkMotorPowerFlag=0;
     	}
 
     	timer10s++;
@@ -106,10 +111,16 @@ int processAlgoidMsg(void){
 int make2WDaction(void){
 	int ptrData;
 	int myTaskId;
+	unsigned char actionCount=0;
+
 	// Création d'une tâche pour les toutes les actions à effectuer
 	// Recois un numéro de tache en retour
 
-	myTaskId=createBuggyTask(AlgoidCommand.msgID, 2);			// 2 actions pour mouvement 2WD
+	// Recherche le nombre d'action à effectuer
+	if(getWDvalue("left")>=0) actionCount++;
+	if(getWDvalue("right")>=0) actionCount++;
+
+	myTaskId=createBuggyTask(AlgoidCommand.msgID, actionCount);			// 2 actions pour mouvement 2WD
 
 	if(myTaskId>0){
 		printf("Creation de tache: #%d\n", myTaskId);
@@ -138,6 +149,8 @@ int make2WDaction(void){
 // -------------------------------------------------------------------
 int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 	int myDirection;
+	int setTimerResult;
+	int endOfTask;
 
 	if(veloc > 0)
 		myDirection=BUGGY_FORWARD;
@@ -149,8 +162,22 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 	}
 
 	// Start timer and set callbackback function with arg for stop
-	if(setTimerWheel(time, &endWheelAction, actionNumber, wheelNumber)){
-		if(setMotor(wheelNumber,myDirection, veloc)){
+	setTimerResult=setTimerWheel(time, &endWheelAction, actionNumber, wheelNumber);
+
+	if(setTimerResult!=0){				// Timer pret
+		if(setTimerResult>1){			// Timer ecrasé
+			endOfTask=removeBuggyTask(setTimerResult);	// Supprime la tache écrasée par la nouvelle valeur
+			if(endOfTask){
+				sendResponse(endOfTask, "event","2wd", 0, 0);
+				sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
+				printf(reportBuffer);
+				sendMqttReport(endOfTask, reportBuffer);
+			}
+		}
+
+		if(setMotorDirection(wheelNumber,myDirection)){
+			setMotorSpeed(wheelNumber, veloc);
+			//setMotorDirection(wheelNumber,myDirection)
 			sprintf(reportBuffer, "Start wheel %d with velocity %d for time %d\n",wheelNumber, veloc, time);
 			printf(reportBuffer);
 			sendMqttReport(actionNumber, reportBuffer);
@@ -163,7 +190,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 		}
 
 	}
-	else printf("Error, Impossible to set timer \n");
+	else printf("Error, Impossible to set timer wheel\n");
 	return 0;
 }
 
@@ -172,21 +199,21 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 // Fin de l'action sur une roue, (Appeler apres timeout)
 // -------------------------------------------------------------------
 int endWheelAction(int actionNumber, int wheelNumber){
-	int result;
+	int endOfTask;
 	//printf("Action number: %d - End of timer for wheel No: %d\n",actionNumber , wheelNumber);
 
 	// Stop le moteur
-	setMotor(wheelNumber,BUGGY_STOP, 0);
+	setMotorSpeed(wheelNumber, 0);
 
 	// Retire l'action de la table et vérification si toute les actions sont effectuées
 	// Pour la tâche en cours
 
-	result=removeBuggyTask(actionNumber);
-	if(result){
-		sendResponse(result, "event","2wd", 0, 0);
-		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", actionNumber);
+	endOfTask=removeBuggyTask(actionNumber);
+	if(endOfTask){
+		sendResponse(endOfTask, "event","2wd", 0, 0);
+		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
-		sendMqttReport(actionNumber, reportBuffer);
+		sendMqttReport(endOfTask, reportBuffer);
 	}
 
 	return 0;
@@ -277,7 +304,7 @@ int removeBuggyTask(int actionNumber){
 				ActionTable[i][TASK_NUMBER]=0;				// Reset/Libère l'occupation de la tâche
 				ActionTable[i][ACTION_ALGOID_ID]= 0;
 				ActionTable[i][ACTION_COUNT]=0;
-				return(algoidMsgId);
+				return(algoidMsgId);						// Retourn le numéro d'action terminé
 			} else return 0;								// Action non terminées
 		}
 	}

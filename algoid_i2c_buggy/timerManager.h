@@ -12,4 +12,6 @@ int InitTimerManager(void);
 int CloseTimerManager(void);
 int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int wheelName);
 
+extern unsigned char checkMotorPowerFlag;
+
 #endif /* TIMERMANAGER_H_ */

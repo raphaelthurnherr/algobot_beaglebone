@@ -37,6 +37,9 @@ extern void DCmotorState(unsigned char state);
 extern void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction);
 extern void DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle);
 extern void setServoPos(unsigned char smAddr, unsigned char position);
+extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
 
-int setMotor(int motorName, int direction, int ratio);
+extern void checkDCmotorPower(void);
+int setMotorDirection(int motorName, int direction);
+int setMotorSpeed(int motorName, int ratio);
 #endif

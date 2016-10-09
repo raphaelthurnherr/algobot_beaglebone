@@ -1,10 +1,21 @@
 #include "boardHWctrl.h"
-
+#include "../timerManager.h"
 #include "libs/bbb_i2c.h"								// SMBUS Control
 
+void checkDCmotorPower(void);		// Fonction temporaire pour rampe d'acceleration
 
 unsigned char configPWMdevice(void);
 unsigned char configGPIOdevice(void);
+
+
+// Variables de test pour rampe d'acceleration
+unsigned char motorDCadr[2]={DCM0, DCM1};	// Valeur de la puissance moteur
+
+unsigned char motorDCactualPower[2];	// Valeur de la puissance moteur
+unsigned char motorDCtargetPower[2]; // Valuer de consigne pour la puissance moteur
+unsigned char motorDCaccelValue[2]={25,25};	// Valeur d'acceleration des moteurs
+unsigned char motorDCdecelValue[2]={25,25};	// Valeur d'acceleration des moteurs
+
 
 //================================================================================
 // BUGGYBOARDINIT
@@ -201,12 +212,36 @@ unsigned char configGPIOdevice(void){
 
 
 // ---------------------------------------------------------------------------
-// SETMOTOR
+// SETMOTORDIRECTION
 // ---------------------------------------------------------------------------
-int setMotor(int motorName, int direction, int ratio){
+int setMotorDirection(int motorName, int direction){
 
 	unsigned char motorAdress;
 	unsigned char motorAction;
+
+	// Conversion No de moteur en adresse du registre du PWM controleur
+	switch(motorName){
+		case WHEEL_LEFT : 	motorAdress = DCM0;	break;
+		case WHEEL_RIGHT :  motorAdress = DCM1;	break;
+		default : return(0);
+	}
+
+	switch(direction){
+		case BUGGY_FORWARD :	DCmotorSetRotation(motorAdress, MCW); break;
+		case BUGGY_BACK : 	 	DCmotorSetRotation(motorAdress, MCCW); break;
+		case BUGGY_STOP : 		break;
+		default :		     	break;
+	}
+
+
+	return(1);
+}
+
+
+// ---------------------------------------------------------------------------
+// SETMOTORSPEED
+// ---------------------------------------------------------------------------
+int setMotorSpeed(int motorName, int ratio){
 
 	// Vérification ratio max et min
 	if(ratio > 100)
@@ -214,22 +249,39 @@ int setMotor(int motorName, int direction, int ratio){
 	if (ratio<0)
 		ratio = 0;
 
-	switch(motorName){
-		case WHEEL_LEFT : 	motorAdress = DCM0; break;
-		case WHEEL_RIGHT :  motorAdress = DCM1; break;
-		default : return(0);
-	}
-	// Set the PWM speed of the motor
-	DCmotorSetSpeed(motorAdress, ratio);
-
-	switch(direction){
-		case BUGGY_FORWARD :	motorAction = MCW; break;
-		case BUGGY_BACK : 	 	motorAction = MCCW; break;
-		case BUGGY_STOP : 		motorAction = MSTOP; break;
-		default :		     	break;
-	}
-
-	DCmotorSetRotation(motorAdress, motorAction);
+	motorDCtargetPower[motorName]=ratio;
 	return(1);
+}
+
+// ------------------------------------------------------------------------------------
+// ONTIMEOUT50ms: Fcontion appelee chaque 50mS
+//
+// ------------------------------------------------------------------------------------
+void checkDCmotorPower(void){
+	unsigned char i;
+
+	// Contrôle successivement la puissance sur chaque moteur et effectue une rampe d'accélération ou décéleration
+	for(i=0;i<2;i++){
+		//printf("Motor Nb: %d Adr: %2x ActualPower: %d   TargetPower: %d  \n",i, motorDCadr[i], motorDCactualPower[i], motorDCtargetPower[i]);
+		if(motorDCactualPower[i]<motorDCtargetPower[i]){
+			if(motorDCactualPower[i]+motorDCaccelValue[i]<=motorDCtargetPower[i])		// Contrôle que puissance après acceleration ne dépasse pas la consigne
+				motorDCactualPower[i]+=motorDCaccelValue[i];						// Augmente la puissance moteur
+			else motorDCactualPower[i]=motorDCtargetPower[i];						// Attribue la puissance de consigne
+
+			DCmotorSetSpeed(motorDCadr[i], motorDCactualPower[i]);
+		}
+
+		if(motorDCactualPower[i]>motorDCtargetPower[i]){
+			if(motorDCactualPower[i]-motorDCdecelValue[i]>=motorDCtargetPower[i])		// Contrôle que puissance après acceleration ne dépasse pas la consigne
+				motorDCactualPower[i]-=motorDCdecelValue[i];						// Diminue la puissance moteur
+			else motorDCactualPower[i]=motorDCtargetPower[i];						// Attribue la puissance de consigne
+
+			DCmotorSetSpeed(motorDCadr[i], motorDCactualPower[i]);
+
+			// Ouvre le pont en h de commande moteur
+			if(motorDCactualPower[i]==0)
+				setMotorDirection(i,BUGGY_STOP);
+		}
+	}
 }
 

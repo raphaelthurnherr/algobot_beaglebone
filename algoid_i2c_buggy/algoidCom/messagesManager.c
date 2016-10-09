@@ -66,6 +66,7 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 	    {
 	    	// Verification de l'arrivée d'un message MQTT
 	    	if(mqttDataReady){
+	    	printf("\n-----------------------------\n");
 	    	printf("Nouveau message MQTT recu -> ");
 	    	//printf("[DEBUG] message: %s", MqttDataBuffer);
 	    	// RECEPTION DES DONNES UTILES
