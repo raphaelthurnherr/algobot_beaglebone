@@ -111,19 +111,22 @@ int pushMsgStack(void){
 
 		// ENREGISTREMENT DU MESSAGE DANS LA PILE
 		AlgoidMsgRXStack[ptrMsgRXstack]=AlgoidMessageRX;
-/*
+// FOR DEBUG
 		// AFFICHAGE DES DONNEES
+/*
+		int i;
 		printf("Message to   %s   from   %s with ID %d \n",AlgoidMsgRXStack[ptrMsgRXstack].msgTo,AlgoidMsgRXStack[ptrMsgRXstack].msgFrom, AlgoidMsgRXStack[ptrMsgRXstack].msgID );
 		printf("type:  %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgType);
 		printf("param: %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgParam);
 		printf("ValCount: %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgValueCnt);
 		for(i=0;i<AlgoidMsgRXStack[ptrMsgRXstack].msgValueCnt;i++){
-			if(AlgoidMsgRXStack[ptrMsgRXstack].msgParam==LL_WD)
-				printf("wheel: %s   velocity: %d   time: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].wheel, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].velocity, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].time);
+			if(AlgoidMsgRXStack[ptrMsgRXstack].msgParam==100)// Commande LL_WD ?
+				printf("wheel: %s   velocity: %d   time: %d accel: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].wheel, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].velocity, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].time, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].accel);
 			else
 				printf("mode: %s   value: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].mode, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].value);
 		}
 */
+//END DEBUG
 		ptrMsgRXstack++;
 		return ptrMsgRXstack-1;
 	}
