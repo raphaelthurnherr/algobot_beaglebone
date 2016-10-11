@@ -7,6 +7,7 @@ void checkDCmotorPower(void);		// Fonction temporaire pour rampe d'acceleration
 unsigned char configPWMdevice(void);
 unsigned char configGPIOdevice(void);
 
+void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
 
 // Variables de test pour rampe d'acceleration
 unsigned char motorDCadr[2]={DCM0, DCM1};	// Valeur de la puissance moteur
@@ -259,11 +260,15 @@ int setMotorSpeed(int motorName, int ratio){
 // ------------------------------------------------------------------------------------
 void checkDCmotorPower(void){
 	unsigned char i;
+	unsigned char PowerToSet;
 
 	// Contrôle successivement la puissance sur chaque moteur et effectue une rampe d'accélération ou décéleration
 	for(i=0;i<2;i++){
 		//printf("Motor Nb: %d Adr: %2x ActualPower: %d   TargetPower: %d  \n",i, motorDCadr[i], motorDCactualPower[i], motorDCtargetPower[i]);
-		if(motorDCactualPower[i]<motorDCtargetPower[i]){
+		if(motorDCactualPower[i] < motorDCtargetPower[i]){
+			PowerToSet=motorDCactualPower[i] + ((motorDCtargetPower[i]-motorDCactualPower[i])/100)*motorDCaccelValue[i];
+			//printf("Power to set: %d %",PowerToSet);
+
 			if(motorDCactualPower[i]+motorDCaccelValue[i]<=motorDCtargetPower[i])		// Contrôle que puissance après acceleration ne dépasse pas la consigne
 				motorDCactualPower[i]+=motorDCaccelValue[i];						// Augmente la puissance moteur
 			else motorDCactualPower[i]=motorDCtargetPower[i];						// Attribue la puissance de consigne
@@ -283,5 +288,30 @@ void checkDCmotorPower(void){
 				setMotorDirection(i,BUGGY_STOP);
 		}
 	}
+}
+
+// -------------------------------------------------------------------
+// setMotorAccelDecel
+// Modifie les valeur d'acceleration et decelaration du moteur
+// -------------------------------------------------------------------
+void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent){
+
+	// Récupération de la valeur absolue de l'acceleration
+	if(accelPercent<0) accelPercent*=-1;
+	// Défini un maximum de 100% d'acceleration
+	if(accelPercent>100)
+		accelPercent=100;
+
+	// Récupération de la valeur absolue de la deceleration
+	if(decelPercent<0) decelPercent*=-1;
+	// Défini un maximum de 100% de deceleration
+	if(decelPercent>100)
+		decelPercent=100;
+
+	// Ne modifie les valeurs d'acceleration et deceleration uniquement si "valable" (=>0)
+	if(accelPercent>0)
+		motorDCaccelValue[motorNo] = accelPercent;
+	if(decelPercent>0)
+		motorDCdecelValue[motorNo] = decelPercent;
 }
 

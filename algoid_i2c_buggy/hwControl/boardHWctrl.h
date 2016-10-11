@@ -42,4 +42,5 @@ extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
 extern void checkDCmotorPower(void);
 int setMotorDirection(int motorName, int direction);
 int setMotorSpeed(int motorName, int ratio);
+extern void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
 #endif
