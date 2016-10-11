@@ -43,6 +43,8 @@ struct mValue{
 	char wheel[50];
 	int velocity;
 	int time;
+	char accel;
+	char decel;
 };
 
 typedef struct JsonCommand{

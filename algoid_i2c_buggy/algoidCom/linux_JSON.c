@@ -21,6 +21,8 @@
 #define KEY_MESSAGE_VALUE_WHEEL "{'MsgData'{'MsgValue'[*{'wheel'"
 #define KEY_MESSAGE_VALUE_VELOCITY "{'MsgData'{'MsgValue'[*{'velocity'"
 #define KEY_MESSAGE_VALUE_TIME "{'MsgData'{'MsgValue'[*{'time'"
+#define KEY_MESSAGE_VALUE_ACCEL "{'MsgData'{'MsgValue'[*{'accel'"
+#define KEY_MESSAGE_VALUE_DECEL "{'MsgData'{'MsgValue'[*{'decel'"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -98,6 +100,8 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 				    		  result = jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_WHEEL, AlgoidMessageRX.msgValArray[i].wheel, 15, &i );
 					    	  AlgoidMessageRX.msgValArray[i].velocity= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_VELOCITY, &i);
 					    	  AlgoidMessageRX.msgValArray[i].time= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_TIME, &i);
+					    	  AlgoidMessageRX.msgValArray[i].accel= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_ACCEL, &i);
+					    	  AlgoidMessageRX.msgValArray[i].decel= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_DECEL, &i);
 				    	  }
 				    	  else{
 				    		  result = jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_MODE, AlgoidMessageRX.msgValArray[i].mode, 15, &i );
