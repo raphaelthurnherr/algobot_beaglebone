@@ -99,7 +99,7 @@ int main(void) {
 // -------------------------------------------------------------------
 int processAlgoidMsg(void){
 	switch(AlgoidCommand.msgParam){
-		case LL_2WD : make2WDaction(); break;
+		case LL_2WD : 	make2WDaction(); break;
 		default : break;
 	}
 	return 0;
@@ -126,11 +126,18 @@ int make2WDaction(void){
 		printf("Creation de tache: #%d\n", myTaskId);
 		ptrData=getWDvalue("left");
 		if(ptrData >=0){
+			// Enregistre la donnée d'acceleration si disponible (<0)
+			if(AlgoidCommand.msgValArray[ptrData].accel!=0 || AlgoidCommand.msgValArray[ptrData].decel!=0)
+				setMotorAccelDecel(WHEEL_LEFT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
+			// Effectue l'action sur la roue
 			setWheelAction(myTaskId, WHEEL_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, AlgoidCommand.msgValArray[ptrData].time);
 		}
 
 		ptrData=getWDvalue("right");
 		if(ptrData >=0){
+			// Enregistre la donnée d'acceleration si disponible (<0)
+			if(AlgoidCommand.msgValArray[ptrData].accel>0 || AlgoidCommand.msgValArray[ptrData].decel>0)
+				setMotorAccelDecel(WHEEL_RIGHT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
 			setWheelAction(myTaskId, WHEEL_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, AlgoidCommand.msgValArray[ptrData].time);
 		}
 		if((AlgoidCommand.msgValArray[ptrData].velocity < -100) ||(AlgoidCommand.msgValArray[ptrData].velocity > 100))
