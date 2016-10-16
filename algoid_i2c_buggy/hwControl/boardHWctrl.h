@@ -4,6 +4,7 @@
 // Device addresses (7 bits, lsb is a don't care)
 #define  PCA9680               	0x40 	// Device address for PWM controller
 #define  MCP2308               	0x20	// Device address for GPIO controller
+#define  EFM8BB               	0x0A	// Device address for EFM8BB microcontroller
 
 #define PWM_ALL_ADR				0xFC	// PCA9685 all call address
 
@@ -40,7 +41,11 @@ extern void setServoPos(unsigned char smAddr, unsigned char position);
 extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
 
 extern void checkDCmotorPower(void);
-int setMotorDirection(int motorName, int direction);
-int setMotorSpeed(int motorName, int ratio);
+extern int setMotorDirection(int motorName, int direction);
+extern int setMotorSpeed(int motorName, int ratio);
 extern void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
+
+extern int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
+extern char getDigitalInput(unsigned char InputNr);			// Get digital input state in mm from the EFM8BB microcontroller
+extern int getBatteryVoltage(void);							// Get the battery voltage in mV from EFM8BB microcontroller
 #endif

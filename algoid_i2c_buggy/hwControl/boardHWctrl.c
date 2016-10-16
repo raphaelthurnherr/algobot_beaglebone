@@ -9,7 +9,10 @@ unsigned char configGPIOdevice(void);
 
 void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
 
-// Variables de test pour rampe d'acceleration
+int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
+char getDigitalInput(unsigned char InputNr);		// Get digital input state in mm from the EFM8BB microcontroller
+int getBatteryVoltage(void);						// Get the battery voltage in mV from EFM8BB microcontroller
+
 unsigned char motorDCadr[2]={DCM0, DCM1};	// Valeur de la puissance moteur
 
 unsigned char motorDCactualPower[2];	// Valeur de la puissance moteur
@@ -313,5 +316,63 @@ void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPerc
 		motorDCaccelValue[motorNo] = accelPercent;
 	if(decelPercent>0)
 		motorDCdecelValue[motorNo] = decelPercent;
+}
+
+// -------------------------------------------------------------------
+// GETSONARDISTANCE
+// Lecture de la distance mesuree au sonar [mm]
+// -------------------------------------------------------------------
+	int getSonarDistance(void){
+	unsigned char err;
+	unsigned int SonarDistance_mm;
+
+	SonarDistance_mm=0;
+	err=i2cSelectSlave(EFM8BB);
+
+	if(!err){
+		SonarDistance_mm=i2cReadByte(20);
+		SonarDistance_mm+=(i2cReadByte(21)<<8);
+		return SonarDistance_mm;
+	}else return -1;
+}
+
+
+	// -------------------------------------------------------------------
+	// GETBATTERYVOLTAGE
+	// Lecture de la tension batterie
+	// -------------------------------------------------------------------
+	int getBatteryVoltage(void){
+		unsigned char err;
+		unsigned int batteryVoltage_mV;
+
+		batteryVoltage_mV=0;
+		err=i2cSelectSlave(EFM8BB);
+
+		if(!err){
+			batteryVoltage_mV=i2cReadByte(10);
+			batteryVoltage_mV+=(i2cReadByte(11)<<8);
+			return batteryVoltage_mV;
+		}else return -1;
+	}
+
+// -------------------------------------------------------------------
+// GETDIGITALINPUT
+// Mesure de l'état des entrées digitale
+// -------------------------------------------------------------------
+char getDigitalInput(unsigned char InputNr){
+	unsigned char err;
+	unsigned char inputState;
+
+	err=i2cSelectSlave(EFM8BB);
+
+	if(!err){
+		switch(InputNr){
+			case 0 :	inputState=i2cReadByte(30); break;
+			case 1 :	inputState=i2cReadByte(31); break;
+			default:	return(-1); break;
+		}
+
+		return inputState;
+	}else return -1;
 }
 
