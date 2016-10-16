@@ -113,7 +113,6 @@ int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int w
 			myTimer[i][ACTIONID]=actionNumber;							// Memorise le no d'action
 			if(!setTimerResult)setTimerResult=1;						// Retourne OK, si pas d'action écrasé
 			timerIsSet=1;
-			printf("Emplacement #%d ACTION ID= %d\n", i, myTimer[i][ACTIONID]);
 		}
 
 		i++;

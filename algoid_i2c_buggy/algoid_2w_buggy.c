@@ -82,6 +82,15 @@ int main(void) {
 			checkMotorPowerFlag=0;
     	}
 
+
+    	int distance, battery, DIN0, DIN1;
+
+    	battery = getBatteryVoltage();
+    	distance =getSonarDistance();
+    	DIN0 = getDigitalInput(0);
+    	DIN1 = getDigitalInput(1);
+    	printf("Distance in mm: %d    Battery: %d    DIN0: %d     DIN1: %d   \n",distance, battery, DIN0, DIN1);
+
     	timer10s++;
     	usleep(100000);
 	}
