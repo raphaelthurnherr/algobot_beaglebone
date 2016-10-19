@@ -2,23 +2,24 @@
 #include "../timerManager.h"
 #include "libs/bbb_i2c.h"								// SMBUS Control
 
-void checkDCmotorPower(void);		// Fonction temporaire pour rampe d'acceleration
 
-unsigned char configPWMdevice(void);
-unsigned char configGPIOdevice(void);
+void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
+unsigned char configPWMdevice(void);		// Configuration of the PCA9685 for 50Hz operation
+unsigned char configGPIOdevice(void);		// Configuration IO mode of the MCP28003
 
 void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
+unsigned char getMotorPower(unsigned char motorNr);
 
 int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
 char getDigitalInput(unsigned char InputNr);		// Get digital input state in mm from the EFM8BB microcontroller
 int getBatteryVoltage(void);						// Get the battery voltage in mV from EFM8BB microcontroller
 
-unsigned char motorDCadr[2]={DCM0, DCM1};	// Valeur de la puissance moteur
+unsigned char motorDCadr[2]={DCM0, DCM1};			// Valeur de la puissance moteur
 
-unsigned char motorDCactualPower[2];	// Valeur de la puissance moteur
-unsigned char motorDCtargetPower[2]; // Valuer de consigne pour la puissance moteur
-unsigned char motorDCaccelValue[2]={25,25};	// Valeur d'acceleration des moteurs
-unsigned char motorDCdecelValue[2]={25,25};	// Valeur d'acceleration des moteurs
+unsigned char motorDCactualPower[2];				// Valeur de la puissance moteur
+unsigned char motorDCtargetPower[2]; 				// Valuer de consigne pour la puissance moteur
+unsigned char motorDCaccelValue[2]={25,25};			// Valeur d'acceleration des moteurs
+unsigned char motorDCdecelValue[2]={25,25};			// Valeur d'acceleration des moteurs
 
 
 //================================================================================
@@ -376,3 +377,12 @@ char getDigitalInput(unsigned char InputNr){
 	}else return -1;
 }
 
+
+// -------------------------------------------------------------------
+// GETMOTORPOWER
+// Retourne l'état actuelle de la puissance du moteur selectionné
+// -------------------------------------------------------------------
+
+unsigned char getMotorPower(unsigned char motorNr){
+	return motorDCactualPower[motorNr];
+}

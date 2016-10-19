@@ -41,10 +41,12 @@ extern void setServoPos(unsigned char smAddr, unsigned char position);
 extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
 
 extern void checkDCmotorPower(void);
+
 extern int setMotorDirection(int motorName, int direction);
 extern int setMotorSpeed(int motorName, int ratio);
 extern void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
 
+extern unsigned char getMotorPower(unsigned char motorNr);	// Get the actual power of selected motor
 extern int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
 extern char getDigitalInput(unsigned char InputNr);			// Get digital input state in mm from the EFM8BB microcontroller
 extern int getBatteryVoltage(void);							// Get the battery voltage in mV from EFM8BB microcontroller
