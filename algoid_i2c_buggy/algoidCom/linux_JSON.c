@@ -18,6 +18,16 @@
 #define KEY_MESSAGE_VALUE_MODE "{'MsgData'{'MsgValue'[*{'mode'"
 #define KEY_MESSAGE_VALUE_VALUE "{'MsgData'{'MsgValue'[*{'value'"
 
+#define KEY_MESSAGE_VALUE_DIN "{'MsgData'{'MsgValue'[*{'din'"
+
+#define KEY_MESSAGE_VALUE_SONAR "{'MsgData'{'MsgValue'[*{'sonar'"
+#define KEY_MESSAGE_VALUE_ANGLE "{'MsgData'{'MsgValue'[*{'angle'"
+#define KEY_MESSAGE_VALUE_BATT "{'MsgData'{'MsgValue'[*{'battery'"
+
+#define KEY_MESSAGE_VALUE_EVENT_STATE "{'MsgData'{'MsgValue'[*{'event'"
+#define KEY_MESSAGE_VALUE_EVENT_LOWER "{'MsgData'{'MsgValue'[*{'event_lower'"
+#define KEY_MESSAGE_VALUE_EVENT_HIGHER "{'MsgData'{'MsgValue'[*{'event_higher'"
+
 #define KEY_MESSAGE_VALUE_WHEEL "{'MsgData'{'MsgValue'[*{'wheel'"
 #define KEY_MESSAGE_VALUE_VELOCITY "{'MsgData'{'MsgValue'[*{'velocity'"
 #define KEY_MESSAGE_VALUE_TIME "{'MsgData'{'MsgValue'[*{'time'"
@@ -33,7 +43,7 @@
 #include "libs/lib_json/jRead.h"
 #include "libs/lib_json/jWrite.h"
 
-void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,char * msgParam, char * value, int data);
+void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,char * msgParam, unsigned char valStr, unsigned char count);
 char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer);
 
 ALGOID myReplyMessage;
@@ -89,10 +99,15 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 					if(!strcmp(myDataString, "stop")) AlgoidMessageRX.msgParam = STOP;
 					if(!strcmp(myDataString, "2wd")) AlgoidMessageRX.msgParam = LL_2WD;
 
-	// DATA ARRAY
+					if(!strcmp(myDataString, "distance")) AlgoidMessageRX.msgParam = DISTANCE;
+					if(!strcmp(myDataString, "battery")) AlgoidMessageRX.msgParam = BATTERY;
+					if(!strcmp(myDataString, "din")) AlgoidMessageRX.msgParam = DINPUT;
+
+
 				  jRead((char *)srcBuffer, KEY_MESSAGE_VALUE, &element );
-				  if(element.dataType == JREAD_ARRAY )
-				  {
+
+					// RECHERCHE DATA ARRAY
+				  if(element.dataType == JREAD_ARRAY ){
 					  AlgoidMessageRX.msgValueCnt=element.elements;
 				      for(i=0; i<element.elements; i++ )    // loop for no. of elements in JSON
 				      {
@@ -103,19 +118,40 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 					    	  AlgoidMessageRX.msgValArray[i].accel= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_ACCEL, &i);
 					    	  AlgoidMessageRX.msgValArray[i].decel= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_DECEL, &i);
 				    	  }
-				    	  else{
-				    		  result = jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_MODE, AlgoidMessageRX.msgValArray[i].mode, 15, &i );
-					    	  AlgoidMessageRX.msgValArray[i].value= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_VALUE, &i);
+
+				    	  if(AlgoidMessageRX.msgParam == DINPUT){
+						     AlgoidMessageRX.DINsens[i].id= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_DIN, &i);
+				    		 jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_STATE, AlgoidMessageRX.DINsens[i].event_state, 15, &i );
+//					    	 printf("id:%d event: %s\n", AlgoidMessageRX.DINsens[i].id, AlgoidMessageRX.DINsens[i].event_state);
 				    	  }
+
+				    	  if(AlgoidMessageRX.msgParam == DISTANCE){
+				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_STATE, AlgoidMessageRX.DISTsens[i].event_state, 15, &i );
+				    		  AlgoidMessageRX.DISTsens[i].id= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_SONAR, &i);
+				    		  AlgoidMessageRX.DISTsens[i].angle= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_ANGLE, &i);
+				    		  AlgoidMessageRX.DISTsens[i].event_low= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_LOWER, &i);
+				    		  AlgoidMessageRX.DISTsens[i].event_high= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_HIGHER, &i);
+//				    		  printf("\n-SONAR: %d DIST_EVENT_HIGH: %d, DIST_EVENT_LOW: %d  DIST_EVENT_ENABLE: %s\n", AlgoidMessageRX.DISTsens[i].id,
+//				    		  AlgoidMessageRX.DISTsens[i].event_high, AlgoidMessageRX.DISTsens[i].event_low, AlgoidMessageRX.DISTsens[i].event_state);
+				    	  }
+
+				    	  if(AlgoidMessageRX.msgParam == BATTERY){
+				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_STATE, AlgoidMessageRX.BATTsens[i].event_state, 15, &i );
+				    		  AlgoidMessageRX.BATTsens[i].id= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_BATT, &i);
+				    		  AlgoidMessageRX.BATTsens[i].event_low= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_LOWER, &i);
+				    		  AlgoidMessageRX.BATTsens[i].event_high= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_HIGHER, &i);				    	  }
+
 				    	  if(result == 0)
 				    		  return 0;
 				    }
-				  }
+				  }else AlgoidMessageRX.msgValueCnt=0;
 
-				  //
 				  if(AlgoidMessageRX.msgParam < 0 || AlgoidMessageRX.msgType < 0){
 					  return 0;
-				  }else return 1;
+				  }
+
+				  return 1;
+
 }
 
 
@@ -123,8 +159,9 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 // replyToHost
 // convert the structure in JSON format & Send to host
 // -----------------------------------------------------------------------------
-void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,char * msgParam, char * value, int data ){
+void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType, char * msgParam, unsigned char valStr, unsigned char count ){
 	unsigned int buflen= 1024;
+	unsigned char i;
 
 // Formatage de la réponse en JSON
 	jwOpen( buffer, buflen, JW_OBJECT, JW_PRETTY );		// start root object
@@ -134,12 +171,42 @@ void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,c
 		jwObj_object( "MsgData" );
 			jwObj_string( "MsgType", msgType );				// add object key:value pairs
 			if(msgParam!=0) jwObj_string( "MsgParam", msgParam );				// add object key:value pairs
-			/*
-			if(value!=""){
-				jwObj_array("MsgValue");
-				jwObj_int("test", 9 );
+
+			if(count>0){
+
+				jwObj_array( "MsgValue" );
+				for(i=0;i<count;i++){
+					//printf("Make array: %d values: %d %d\n", i, 0,9);
+					jwArr_object();
+						switch(valStr){
+
+						case DISTCM :	jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);				// add object key:value pairs
+										jwObj_int("distCM", round((AlgoidResponse[i].value)/10));				// add object key:value pairs
+										jwObj_int("angle", AlgoidResponse[i].DISTresponse.angle);				// add object key:value pairs
+										jwObj_string("event", AlgoidResponse[i].DISTresponse.event_state);				// add object key:value pairs
+										jwObj_int("event_lower", AlgoidResponse[i].DISTresponse.event_low);				// add object key:value pairs
+										jwObj_int("event_higher", AlgoidResponse[i].DISTresponse.event_high);				// add object key:value pairs
+										break;
+
+						case BATTVOLT :
+										jwObj_int( "battery",AlgoidResponse[i].BATTesponse.id);				// add object key:value pairs
+										jwObj_int("mV", AlgoidResponse[i].value);				// add object key:value pairs
+										jwObj_string("event", AlgoidResponse[i].BATTesponse.event_state);				// add object key:value pairs
+										jwObj_int("event_lower", AlgoidResponse[i].BATTesponse.event_low);				// add object key:value pairs
+										jwObj_int("event_higher", AlgoidResponse[i].BATTesponse.event_high);				// add object key:value pairs
+									    break;
+
+						case SENSORS_STATE : jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
+									   jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
+									   break;
+						default:  	   break;
+
+						}
+					jwEnd();
+				}
+				jwEnd();
 			}
-			*/
+
 
 		jwEnd();
 		jwClose();

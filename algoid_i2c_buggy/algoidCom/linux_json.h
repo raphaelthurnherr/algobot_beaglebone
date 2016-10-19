@@ -26,20 +26,18 @@
 	#define LL_2WD			100				// LOW LEVEL WHEEL DIRECTIV
 
 	// DEFINITION DES PARAMETRES DE TYPE REQUEST
-	#define DISTANCE   	   0
-	#define DISTANCE_MAP   1
-	#define SENSORS	       2
+	#define DISTANCE   	   20
+	#define DISTANCE_MAP   21
+	#define DINPUT	       22
+	#define BATTERY		   30
 
 	// DEFINITION DES MODES POUR TYPE DE COMMANDE
-	#define CM "distCm"
-	#define STEP "step"
-	#define INFINIT "infinit"
-	#define SECONDS "timeSec"
+	#define DISTCM		0
+	#define BATTVOLT    1
+	#define SENSORS_STATE    2
 
-struct mValue{
-	char mode[100];
-	int value;
 
+struct m2wd{
 	char wheel[50];
 	int velocity;
 	int time;
@@ -47,6 +45,27 @@ struct mValue{
 	char decel;
 };
 
+struct mDin{
+	int id;
+	char event_state[50];
+};
+
+struct mDistance{
+	int id;
+	char event_state[50];
+	int event_low;
+	int event_high;
+	int angle;
+};
+
+struct mBattery{
+	int id;
+	char event_state[50];
+	int event_low;
+	int event_high;
+};
+
+// Structure d'un message algoid recu
 typedef struct JsonCommand{
 	char msgTo[32];
 	char msgFrom[32];
@@ -54,12 +73,34 @@ typedef struct JsonCommand{
 	int msgType;
 	int msgParam;
 	unsigned char msgValueCnt;
-	struct mValue msgValArray[20];
+
+	// UNION ???
+	struct m2wd msgValArray[20];
+
+	struct mDin DINsens[20];
+	struct mDistance DISTsens[20];
+	struct mBattery BATTsens[20];
+	// UNION ???
+
 }ALGOID;
+
+// Structure de réponse à un message algoid
+typedef struct JsonResponse{
+	int value;
+	// UNION ???
+	struct mDin DINresponse;
+	struct mBattery BATTesponse;
+	struct mDistance DISTresponse;
+	// UNION ???
+}ALGOID_RESPONSE;
 
 ALGOID AlgoidCommand;    // Utilisé par main.c
 ALGOID AlgoidMessageRX;
 ALGOID AlgoidMsgRXStack[10];
 
+// Buffer de soirtie pour les 	msgValue[
+ALGOID_RESPONSE AlgoidResponse[20];
+
+
 extern char GetAlgoidMsg(ALGOID DestReceiveMessage,char *srcDataBuffer);
-void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,char * msgParam, char * value, int data);
+void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType,char * msgParam, unsigned char value, unsigned char count);
