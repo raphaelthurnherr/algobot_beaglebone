@@ -18,12 +18,42 @@
 #include "timerManager.h"
 
 int ActionTable[10][3];
-
+unsigned int bufferSpeedCalcArray[2];
+unsigned char ptrSpeedCalc;
 int createBuggyTask(int MsgId, int actionCount);
 int removeBuggyTask(int actionNumber);
 
+void distanceEventCheck(void);
+void batteryEventCheck(void);
+void DINEventCheck(void);
+
+// Data sensors
+int distance[5], angle[5]={1,2,3,4,5};
+
+int battery[5];
+int DIN[5]={11, 22, 33, 44, 55};
+
+unsigned char distWarningSended;
+unsigned char DIST_EVENT_ENABLE[5];
+unsigned int DIST_EVENT_LOW[5]={0,0,0,0,0};
+unsigned int DIST_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
+
+unsigned char battWarningSended;
+unsigned char BATT_EVENT_ENABLE[5];
+unsigned int BATT_EVENT_LOW[5]={0,0,0,0,0};
+unsigned int BATT_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
+
+
+unsigned char DIN_EVENT_ENABLE[5];
+unsigned char DIN_HAS_CHANGE[5];
+
 // Traitement du message algoid recu
-int processAlgoidMsg(void);
+int processAlgoidCommand(void);
+int processAlgoidRequest(void);
+
+int makeSensorsRequest(void);
+int makeDistanceRequest(void);
+int makeBatteryRequest(void);
 
 int make2WDaction(void);
 int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time);
@@ -31,9 +61,9 @@ int endWheelAction(int actionNumber, int wheelNumber);
 
 int getWDvalue(char * wheelName);
 char reportBuffer[256];
-char timer10s;
 
 int main(void) {
+
 	if(InitMessager()) printf ("# Creation tache messagerie : ERREUR\n");
 	else printf ("# Demarrage tache Messager: OK\n");
 
@@ -53,29 +83,25 @@ int main(void) {
 	}
 
 	while(1){
-		int kbInput;
-//		kbInput = mygetch();
 
-		if(kbInput=='q')
-			break;
-
-// COMMANDE ALGOID RECUE
+		// COMMANDE ALGOID RECUE
 		if(pullMsgStack(0)){
 //			printf("[main] messageID:  %d  param: %d   cmd: %d\n\n",AlgoidCommand.msgID,AlgoidCommand.msgParam,AlgoidCommand.msgType );
 			switch(AlgoidCommand.msgType){
-				case COMMAND : processAlgoidMsg(); break;
-				//case REQUEST : processMsgRequest(); break;
+				case COMMAND : processAlgoidCommand(); break;
+				case REQUEST : processAlgoidRequest(); break;
 				default : break;
 			}
 		}
 
-    	if(timer10s>=100){
+    	if(t10secFlag){
     		char udpMessage[50];
     		sprintf(&udpMessage[0], "[ %s ] I'm here",ClientID);
     		sendUDPHeartBit(udpMessage);
 		  // printf("\n MYMAC %s", getMACaddr());
-		    timer10s=0;
+    		t10secFlag=0;
     	}
+
 
     	if(checkMotorPowerFlag){
 			checkDCmotorPower();
@@ -83,16 +109,26 @@ int main(void) {
     	}
 
 
-    	int distance, battery, DIN0, DIN1;
+    	if(t100msFlag){
+    				battery[0] = getBatteryVoltage();
+		    		distance[0] = getSonarDistance();
+		    		if(distance[0]<0) printf("Erreur de lecture Distance");
+		    		bufferSpeedCalcArray[ptrSpeedCalc]=distance[0];
+		    		if(ptrSpeedCalc++>=2)
+		    			ptrSpeedCalc=0;
 
-    	battery = getBatteryVoltage();
-    	distance =getSonarDistance();
-    	DIN0 = getDigitalInput(0);
-    	DIN1 = getDigitalInput(1);
-    	printf("Distance in mm: %d    Battery: %d    DIN0: %d     DIN1: %d   \n",distance, battery, DIN0, DIN1);
+		    		signed char speedCmSec=(bufferSpeedCalcArray[0]-bufferSpeedCalcArray[1])*10;
 
-    	timer10s++;
-    	usleep(100000);
+
+		    		DINEventCheck();
+		    		distanceEventCheck();
+		    		batteryEventCheck();
+
+//    		    	printf("Dist. inst mm: %d speed cm/sec: %d Battery: %d    DIN0: %d     DIN1: %d   \n",distance[0], speedCmSec, battery[0], DIN[0], DIN[1]);
+    		    	t100msFlag=0;
+    	}
+
+    	usleep(1000);
 	}
 
 	int endState=CloseMessager();
@@ -106,9 +142,30 @@ int main(void) {
 // -------------------------------------------------------------------
 // PROCESSCOMMAND
 // -------------------------------------------------------------------
-int processAlgoidMsg(void){
+int processAlgoidCommand(void){
 	switch(AlgoidCommand.msgParam){
 		case LL_2WD : 	make2WDaction(); break;
+		default : break;
+	}
+	return 0;
+}
+
+// -------------------------------------------------------------------
+// PROCESSREQUEST
+// -------------------------------------------------------------------
+int processAlgoidRequest(void){
+	unsigned char i;
+
+	switch(AlgoidCommand.msgParam){
+		case DISTANCE : makeDistanceRequest();
+						break;
+
+		case BATTERY :  makeBatteryRequest();
+						break;
+
+		case DINPUT :	makeSensorsRequest();
+						break;
+
 		default : break;
 	}
 	return 0;
@@ -150,7 +207,7 @@ int make2WDaction(void){
 			setWheelAction(myTaskId, WHEEL_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, AlgoidCommand.msgValArray[ptrData].time);
 		}
 		if((AlgoidCommand.msgValArray[ptrData].velocity < -100) ||(AlgoidCommand.msgValArray[ptrData].velocity > 100))
-			sendResponse(AlgoidCommand.msgID, "warning", "2wd", "test", 999);
+			sendResponse(AlgoidCommand.msgID, "warning", "2wd", "test", 0);
 		return 0;
 	}
 	else return 1;
@@ -325,4 +382,175 @@ int removeBuggyTask(int actionNumber){
 		}
 	}
 	return(-1);												// Tâche inexistante
+}
+
+// -------------------------------------------------------------------
+// MAKESENSORREQUEST
+// Traitement de la requete SENSORS
+// -------------------------------------------------------------------
+int makeSensorsRequest(void){
+	unsigned char i;
+
+	// Pas de paramètres spécifiés, retourne l'ensemble des états des DIN
+	if(AlgoidCommand.msgValueCnt==0){
+		AlgoidCommand.msgValueCnt=2;
+		for(i=0;i<2;i++){
+			AlgoidResponse[i].DINresponse.id=i;
+			AlgoidResponse[i].value=DIN[i];
+		}
+		printf("countmake2: %d\n", AlgoidCommand.msgValueCnt);
+	}else
+		// Retourne les états spécifiés des DIN
+		for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+			// Recherche de paramètres supplémentaires
+			if(!strcmp(AlgoidCommand.DINsens[i].event_state, "on"))	DIN_EVENT_ENABLE[AlgoidCommand.DINsens[i].id]=1;
+			else if(!strcmp(AlgoidCommand.DINsens[i].event_state, "off"))	DIN_EVENT_ENABLE[AlgoidCommand.DINsens[i].id]=0;
+			AlgoidResponse[i].DINresponse.id=AlgoidCommand.DINsens[i].id;
+			AlgoidResponse[i].value=DIN[AlgoidCommand.DINsens[i].id];
+//			printf("DIN: %d, value: %d   modeAuto: %d\n", buffMsgValArray[i][0], buffMsgValArray[i][1], DIN_EVENT_ENABLE[AlgoidCommand.value[i]]);
+		};
+
+	sendResponse(AlgoidCommand.msgID, "response", "sensors", SENSORS_STATE, AlgoidCommand.msgValueCnt);
+	return (1);
+}
+
+
+int makeDistanceRequest(void){
+	unsigned char i;
+
+	// Pas de paramètres spécifié, retourne l'ensemble des états des DIN
+	if(AlgoidCommand.msgValueCnt==0){
+		AlgoidCommand.msgValueCnt=1;
+		for(i=0;i<2;i++){
+			AlgoidResponse[i].DISTresponse.id=i;
+			AlgoidResponse[i].value=distance[i];
+		}
+	}else
+			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+				// Recherche de paramètres supplémentaires
+				// Evenement activées
+				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=1;
+				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=0;
+				// Evemenent haut
+				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_high*10;
+				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_low*10;
+
+				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.DISTsens[i].id;
+				AlgoidResponse[i].value=distance[AlgoidCommand.DISTsens[i].id];
+				AlgoidResponse[i].DISTresponse.angle=angle[AlgoidCommand.DISTsens[i].id];
+
+				if(DIST_EVENT_ENABLE[i])strcpy(AlgoidResponse[i].DISTresponse.event_state, "on");
+				else strcpy(AlgoidResponse[i].DISTresponse.event_state, "off");
+				AlgoidResponse[i].DISTresponse.event_high=DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id];
+				AlgoidResponse[i].DISTresponse.event_low=DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id];
+			};
+		sendResponse(AlgoidCommand.msgID, "response", "distance", DISTCM, AlgoidCommand.msgValueCnt);
+
+		return 1;
+}
+
+
+
+int makeBatteryRequest(void){
+	unsigned char i;
+
+	// Pas de paramètres spécifié, retourne l'ensemble des états des batteries
+	if(AlgoidCommand.msgValueCnt==0){
+		AlgoidCommand.msgValueCnt=1;
+		for(i=0;i<2;i++){
+			AlgoidResponse[i].BATTesponse.id=i;
+			AlgoidResponse[i].value=battery[i];
+		}
+	}else
+			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+				// Recherche de paramètres supplémentaires
+				// Evenement activées
+				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")) BATT_EVENT_ENABLE[AlgoidCommand.BATTsens[i].id]=1;
+				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")) BATT_EVENT_ENABLE[AlgoidCommand.BATTsens[i].id]=0;
+				// Evemenent haut
+				if(AlgoidCommand.BATTsens[i].event_high!=0) BATT_EVENT_HIGH[AlgoidCommand.BATTsens[i].id]=AlgoidCommand.BATTsens[i].event_high;
+				if(AlgoidCommand.BATTsens[i].event_high!=0) BATT_EVENT_LOW[AlgoidCommand.BATTsens[i].id]=AlgoidCommand.BATTsens[i].event_low;
+
+				AlgoidResponse[i].BATTesponse.id=AlgoidCommand.BATTsens[i].id;
+				AlgoidResponse[i].value=battery[AlgoidCommand.BATTsens[i].id];
+				if(BATT_EVENT_ENABLE[i])strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
+				else strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
+				AlgoidResponse[i].BATTesponse.event_high=BATT_EVENT_HIGH[AlgoidCommand.BATTsens[i].id];
+				AlgoidResponse[i].BATTesponse.event_low=BATT_EVENT_LOW[AlgoidCommand.BATTsens[i].id];
+			};
+		sendResponse(AlgoidCommand.msgID, "response", "battery", BATTVOLT, AlgoidCommand.msgValueCnt);
+
+		return 1;
+}
+
+
+void distanceEventCheck(void){
+	unsigned char i;
+	// Contrôle periodique des mesures de distances pour envoie d'evenement
+	for(i=0;i<2;i++){
+		if(DIST_EVENT_ENABLE[i]){
+			if((distance[i]<DIST_EVENT_LOW[i]) || (distance[i]>DIST_EVENT_HIGH[i])){
+				if(distWarningSended==0){
+					AlgoidResponse[i].DISTresponse.id=i;
+					AlgoidResponse[i].value=distance[i];
+					sendResponse(AlgoidCommand.msgID, "event", "distance", DISTCM, 1);
+					distWarningSended=1;
+				}
+			}
+			else if (distWarningSended==1){
+					AlgoidResponse[i].DISTresponse.id=i;
+					AlgoidResponse[i].value=distance[i];
+					sendResponse(AlgoidCommand.msgID, "event", "distance", DISTCM, 1);
+					distWarningSended=0;
+			}
+		}
+	}
+}
+
+void batteryEventCheck(void){
+	unsigned char i;
+	// Contrôle periodique des mesures de distances pour envoie d'evenement
+	for(i=0;i<2;i++){
+		if(BATT_EVENT_ENABLE[i]){
+			if((battery[i]<BATT_EVENT_LOW[i]) || (battery[i]>BATT_EVENT_HIGH[i])){
+				if(battWarningSended==0){
+					AlgoidResponse[i].BATTesponse.id=i;
+					AlgoidResponse[i].value=battery[i];
+					sendResponse(AlgoidCommand.msgID, "event", "battery", BATTVOLT, 1);
+					battWarningSended=1;
+				}
+			}
+			// Envoie un évenement Fin de niveau bas (+50mV Hysterese)
+			else if (battWarningSended==1 && battery[i]>(BATT_EVENT_LOW[i]+50)){
+					AlgoidResponse[i].BATTesponse.id=i;
+					AlgoidResponse[i].value=battery[i];
+					sendResponse(AlgoidCommand.msgID, "event", "battery", BATTVOLT, 1);
+					battWarningSended=0;
+			}
+		}
+	}
+}
+
+void DINEventCheck(void){
+	// Mise à jour de l'état des E/S
+	unsigned char ptrBuff=0, DINevent=0, oldDinValue, i;
+
+	for(i=0;i<2;i++){
+		// Mise à jour de l'état des E/S
+		oldDinValue=DIN[i];
+		DIN[i] = getDigitalInput(i);
+
+		// Vérifie si un changement a eu lieu sur les entrees et transmet un message
+		// "event" listant les modifications
+		if(DIN_EVENT_ENABLE[i] && (oldDinValue!=DIN[i])){
+			AlgoidResponse[ptrBuff].DINresponse.id=i;
+			AlgoidResponse[ptrBuff].value=DIN[i];
+			ptrBuff++;
+			printf("CHANGEMENT DIN%d, ETAT:%d\n", i, DIN[i]);
+			DINevent++;
+		}
+	}
+
+	if(DINevent>0)
+		sendResponse(AlgoidCommand.msgID, "event", "din", SENSORS_STATE, DINevent);
 }
