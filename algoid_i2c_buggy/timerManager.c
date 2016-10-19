@@ -21,11 +21,14 @@ pthread_t th_timers;
 int myTimer[10][4];					// Données des timer callback
 int timeNow = 0;					// Variable de comptage de temp actuel pour les timers avec callback
 unsigned char checkMotorPowerFlag;
-
+unsigned char t100msFlag;
+unsigned char t10secFlag;
 
 void *TimerTask (void * arg){
 	int i;
-	unsigned int cyclicTimer50ms;	// Compteur du timer cyclique
+	unsigned int cyclicTimer50ms;	// Compteur du timer cyclique 50mS
+	unsigned int cyclicTimer100ms;	// Compteur du timer cyclique 100mS
+	unsigned int cyclicTimer10sec;	// Compteur du timer cyclique 10Secondes
 
 	while(1){
 
@@ -45,10 +48,24 @@ void *TimerTask (void * arg){
 		// Controle le time out de 50ms
 		if(cyclicTimer50ms>=50){
 			checkMotorPowerFlag=1;
-			cyclicTimer50ms=0;				// Reset le compteur 5ms
+			cyclicTimer50ms=0;				// Reset le compteur 50ms
 		}
 
-		cyclicTimer50ms++;
+		// Controle le time out de 100ms
+		if(cyclicTimer100ms>=100){
+			t100msFlag=1;
+			cyclicTimer100ms=0;				// Reset le compteur 100ms
+		}
+
+		// Controle le time out de 10 secondes
+		if(cyclicTimer10sec>=10000){
+			t10secFlag=1;
+			cyclicTimer10sec=0;				// Reset le compteur 10secondes
+		}
+
+		cyclicTimer50ms++;				// Reset le compteur 10secondes
+		cyclicTimer100ms++;				// Reset le compteur 10secondes
+		cyclicTimer10sec++;				// Reset le compteur 10secondes
 		timeNow++;
 		usleep(1000);
 	}
@@ -85,8 +102,6 @@ int CloseTimerManager(void){
 // - Stop le thread timers
 // ------------------------------------------------------------------------------------
 int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int wheelName){
-	//void (*ptrFunc)(int);
-	//ptrFunc = callback;
 
 	int i;
 	int timerIsSet;

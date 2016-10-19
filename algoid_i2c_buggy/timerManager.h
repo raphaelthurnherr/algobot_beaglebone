@@ -13,5 +13,6 @@ int CloseTimerManager(void);
 int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int wheelName);
 
 extern unsigned char checkMotorPowerFlag;
-
+extern unsigned char t100msFlag;
+extern unsigned char t10secFlag;
 #endif /* TIMERMANAGER_H_ */
