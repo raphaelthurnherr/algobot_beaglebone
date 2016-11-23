@@ -90,7 +90,7 @@ int main(void) {
 		printf("# Initialisation carte HW: OK\n");
 		sendMqttReport(0,"# Initialisation carte HW: OK\n");
 		// Test
-		setServoPos(LED0, 50);
+		setLedPower(LED0, 50);
 	}
 	else{
 		printf("# Initialisation carte HW: ERREUR\n");
