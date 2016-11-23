@@ -170,6 +170,35 @@ void setServoPos(unsigned char smAddr, unsigned char position){
 	i2cWriteByte(smAddr+1, dCHigh);
 }
 
+//================================================================================
+// SETLEDPOWER
+// Défini l'intensité d'éclairage pour led @ 50HZ selon config PCA9685
+// smAddr = adresse pour le port de sortie concerné sur le chip PCA9685
+// power = Intensité d'éclairage ( 0..100%)
+//================================================================================
+
+void setLedPower(unsigned char smAddr, unsigned char power){
+	unsigned int dutyCycleValue;
+	unsigned char dCLow;
+	unsigned char dCHigh;
+
+	i2cSelectSlave(PCA9680);								// Séléction du chip PWM
+
+	// Vérifie que la puissance définie soit entre 0 et 100%
+	if(power>100)
+		power=100;
+
+	// Conversion de la puissance 0..100% en valeur de timer pour PCA9685
+	dutyCycleValue = (4096/100)*power;
+	dCLow = dutyCycleValue&0x00FF;;
+	dCHigh = (dutyCycleValue&0x0F00) >>8;
+
+//	Applique les nouvelles valeures
+	i2cWriteByte(smAddr, dCLow);
+	i2cWriteByte(smAddr+1, dCHigh);
+}
+
+
 
 //================================================================================
 // CONFIGPWMDEVICE
