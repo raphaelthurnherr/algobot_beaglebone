@@ -1,0 +1,79 @@
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "command", 
+		"MsgParam" : "2wd", 
+		"MsgValue" : [ {
+			"wheel" : "right", 
+			"velocity" : -25,
+			"time" : 10000,
+			"decel":50,
+			"accel":20
+		}, {
+			"wheel" : "left", 
+			"velocity" : -25,
+			"time" : 10000,
+			"accel":20,
+			"decel":50
+		} ]
+	}
+}
+//---------------------------------------
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "request", 
+		"MsgParam" : "battery"
+	}
+}
+
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "request", 
+		"MsgParam" : "din",
+	        "MsgValue": [
+           	 {"din": 1, "event":"on"},
+           	 {"din": 0, "event":"off"}
+        ]
+	}
+}
+
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "request", 
+		"MsgParam" : "distance",
+	        "MsgValue": [ 
+			{
+			"sonar": "0",
+			"angle" : 56,
+			"event": "on",
+			"event_lower": 20,
+			"event_higher": 180
+			}
+        	]
+	}
+}
+
+
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "request", 
+		"MsgParam" : "distance",
+	        "MsgValue": [
+		 {"sonar": "2",angle" : 56, "event": "on", "event_lower": 15, "event_higher": 150}
+        ]
+	}
+}
