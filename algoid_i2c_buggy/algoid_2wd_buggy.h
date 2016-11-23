@@ -8,7 +8,7 @@
 #ifndef ALGOID_2WD_BUGGY_H_
 #define ALGOID_2WD_BUGGY_H_
 
-//
+/*
 struct organStuct{
 	int velocity;
 	int time;
@@ -20,5 +20,6 @@ typedef struct bodyStruct{
 }MOTION2WD;
 
 MOTION2WD wheel;
+*/
 
 #endif /* ALGOID_2WD_BUGGY_H_ */

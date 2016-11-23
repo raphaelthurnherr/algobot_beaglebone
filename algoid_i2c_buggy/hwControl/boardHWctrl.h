@@ -50,4 +50,7 @@ extern unsigned char getMotorPower(unsigned char motorNr);	// Get the actual pow
 extern int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
 extern char getDigitalInput(unsigned char InputNr);			// Get digital input state in mm from the EFM8BB microcontroller
 extern int getBatteryVoltage(void);							// Get the battery voltage in mV from EFM8BB microcontroller
+extern int getFrequency(unsigned char wheelNb);				// Get frequency measured on EFM8BB
+extern int getPulseCounter(unsigned char wheelNb);			// Get pulse counter on EFM8BB
+extern int clearWheelDistance(unsigned char wheelNb);		// Reset to 0 the pulse counter on EFM8BB
 #endif

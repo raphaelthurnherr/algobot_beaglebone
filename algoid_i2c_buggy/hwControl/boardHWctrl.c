@@ -1,18 +1,20 @@
 #include "boardHWctrl.h"
 #include "../timerManager.h"
-#include "libs/bbb_i2c.h"								// SMBUS Control
+#include "libs/bbb_i2c.h"
 
 
 void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
 unsigned char configPWMdevice(void);		// Configuration of the PCA9685 for 50Hz operation
 unsigned char configGPIOdevice(void);		// Configuration IO mode of the MCP28003
 
-void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
-unsigned char getMotorPower(unsigned char motorNr);
+void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);		// Défini l'accéleration/deceleration d'un moteur
+unsigned char getMotorPower(unsigned char motorNr);											// Retourne la velocité actuelle d'un moteur
 
 int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
 char getDigitalInput(unsigned char InputNr);		// Get digital input state in mm from the EFM8BB microcontroller
 int getBatteryVoltage(void);						// Get the battery voltage in mV from EFM8BB microcontroller
+int getFrequency(unsigned char wheelNb);			// Get the wheel frequency
+int getPulseCounter(unsigned char wheelNb);
 
 unsigned char motorDCadr[2]={DCM0, DCM1};			// Valeur de la puissance moteur
 
@@ -31,35 +33,38 @@ unsigned char buggyBoardInit(void){
 	unsigned char err;
 
 	err=i2cInit("/dev/i2c-2");
-	err+=configPWMdevice();
-	err+=configGPIOdevice();
+	err+=configPWMdevice();					// Configuration du Chip PWM pour gestion de la vélocité des DC moteur et angle servomoteur
+	err+=configGPIOdevice();				// Confguration du chip d'entrées/sortie pour la gestion du sens de rotation des moteur DC
 	DCmotorState(1);						// Set the HDRIVER ON
 	if(err)
-		return 0;
+		return 0;							// Erreur
 	else return 1;
 }
 
 
 //================================================================================
 // DCMOTORSTATE
-// set the DC motor driver IC to ON/OFF
+// Défini l'état général de tout les moteurs DC (Driver pont en H)
+//
 //================================================================================
 
 void DCmotorState(unsigned char state){
 	unsigned char MCP2308_GPIO_STATE;
 
-	i2cSelectSlave(MCP2308);							// Read the actual GPIOs value on the MCP23008 Port
-	MCP2308_GPIO_STATE=i2cReadByte(0x09);
+	i2cSelectSlave(MCP2308);							// séléction du CHIP d'entrée/sortie
+	MCP2308_GPIO_STATE=i2cReadByte(0x09);				// Lecture de l'état actuel des ports sur le chip d'entrée/sortie
 
-	if(state) MCP2308_GPIO_STATE |= 0x10;				// Driver ON
-	else MCP2308_GPIO_STATE &= 0xEF;					// Driver OFF
+	if(state) MCP2308_GPIO_STATE |= 0x10;				// Activation du driver pont en H
+	else MCP2308_GPIO_STATE &= 0xEF;					// désactivation du driver pont en H
 
-	i2cWriteByte(0x0A, MCP2308_GPIO_STATE);				// Initiate SMBus write
+	i2cWriteByte(0x0A, MCP2308_GPIO_STATE);				// Envoie de la commande au chip d'entrée/sortie
 }
+
 
 //================================================================================
 // DCMOTORSETSPEED
-// set the speed to the motor (0..100%)
+// Défini le duty cyle à appliquer sur les sorties du chip PWM (0..100%)
+// motorAdr: Adresse de sortie du contrôleur PWM sur lequel doit être appliqué le dutyCycle
 //================================================================================
 
 void DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle){
@@ -67,65 +72,70 @@ void DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle){
 	unsigned char PowerLow;
 	unsigned char PowerHigh;
 
-	// Check the maximum speed
+	// Défini un dutycylce de maximum 100%
 	if(dutyCycle>100)
 		dutyCycle=100;
 
-	// Convert power % in PWM ratio
+	// Conversion du dutyclycle en valeur à appliquer au contrôleur PWM
 	power = ((409500/100)*dutyCycle)/100;
 	PowerLow = power&0x00FF;;
 	PowerHigh = (power&0x0F00) >>8;
 
-	i2cSelectSlave(PCA9680);
-	i2cWriteByte(motorAdr, PowerLow);										// Set the speed of the motor selected
-	i2cWriteByte(motorAdr+1, PowerHigh);
+	i2cSelectSlave(PCA9680);												// Sélection du chip PWM
+	i2cWriteByte(motorAdr, PowerLow);										// Envoie des valeurs correspondant au ratio
+	i2cWriteByte(motorAdr+1, PowerHigh);									// sur les registres haut et bas de la sortie concernée
 }
+
 
 //================================================================================
 // DCMOTORSETROTATION
-// Set the sense of rotation of the motor (Clock Wise, counter clock wise, stop)
+// Défini le sense de rottion d'un moteur DC (sens horaire, antihoraire ou stop)
 //================================================================================
 
 void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 	unsigned char MCP2308_GPIO_STATE;
 
-	// Read the actual GPIOs value on the MCP23008 Port
+	// Sélection du chip d'entrée/sortie qui pilote le pont en H
 	i2cSelectSlave(MCP2308);
 
-	// Read the actual GPIOs value on the MCP23008 Port
-	MCP2308_GPIO_STATE=i2cReadByte(0x09);
 
-	//	ACTION FOR MOTOR 0
+	MCP2308_GPIO_STATE=i2cReadByte(0x09);	// Récupération de l'état actuel des sortie sur le chip pour ne modifier que
+											// le bit nénéssaire
+	//	SELECTION DU MOTEUR No 0
 	if(motorAdr==DCM0){
-		MCP2308_GPIO_STATE &= 0xF9;						// Force H-Bridge Off for motor 0
+		// Désactive la commande du moteur
+		// avant de changer de sens de rotation
+		MCP2308_GPIO_STATE &= 0xF9;
 		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);
 
+		// Séléction du sens de rotation du moteur ou OFF
 		switch(direction){
-			case MCW 	 :  MCP2308_GPIO_STATE |= 0x02; break;			// Select rotary sens
-			case MCCW 	 : 	MCP2308_GPIO_STATE |= 0x04; break;			// Select sens reverse
-			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;			// No sens selected, H-BRIDGE off
+			case MCW 	 :  MCP2308_GPIO_STATE |= 0x02; break;
+			case MCCW 	 : 	MCP2308_GPIO_STATE |= 0x04; break;
+			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;
 			default		 : ;break;
 		}
 
-		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver for sens of motor
+		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Envoie des nouveaux état à mettre sur les sortie du chip d'entrées/sortie
 	}
 
-//	ACTION FOR MOTOR 1
+//	SELECTION DU MOTEUR No 1
 	if(motorAdr==DCM1){
-		MCP2308_GPIO_STATE &= 0xF6;										// Force H-Bridge Off for motor 1
 
-		// Read the actual GPIOs value on the MCP23008 Port
-		i2cSelectSlave(MCP2308);
+		// Désactive la commande du moteur
+		// avant de changer de sens de rotation
+		MCP2308_GPIO_STATE &= 0xF6;										// Force H-Bridge Off for motor 1
 		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver,
 
+		// Séléction du sens de rotation du moteur ou OFF
 		switch(direction){
-			case MCW 	 :  MCP2308_GPIO_STATE |= 0x01; break;			// Select rotary sens
-			case MCCW 	 : 	MCP2308_GPIO_STATE |= 0x08; break;			// Select sens reverse
-			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;			// No sens selected, H-BRIDGE off
+			case MCW 	 :  MCP2308_GPIO_STATE |= 0x01; break;
+			case MCCW 	 : 	MCP2308_GPIO_STATE |= 0x08; break;
+			case MSTOP 	 :  MCP2308_GPIO_STATE |= 0x00; break;
 			default		 : ;break;
 		}
 
-		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Apply the new value on the GPIO driver for sens of motor
+		i2cWriteByte(0x0A, MCP2308_GPIO_STATE);							// Envoie des nouveaux état à mettre sur les sortie du chip d'entrées/sortie
 	}
 
 }
@@ -133,8 +143,9 @@ void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction){
 
 //================================================================================
 // SETSERVOPOS
-// Set the position of the servomotor
-// smAddr = PCA9685 Output x address for servomotor
+// Défini la position a appliquer au servomoteur
+// smAddr = adresse pour le port de sortie concerné sur le chip PCA9685
+// position= Angle de positionnement en degré du servomoteur (de 0..100%)
 //================================================================================
 
 void setServoPos(unsigned char smAddr, unsigned char position){
@@ -142,51 +153,50 @@ void setServoPos(unsigned char smAddr, unsigned char position){
 	unsigned char dCLow;
 	unsigned char dCHigh;
 
-	// Check the maximum speed
+	i2cSelectSlave(PCA9680);								// Séléction du chip PWM
+
+	// Vérifie que le positionnement défini soit entre 0 et 100%
 	if(position>100)
 		position=100;
 
-	// Convert position % in servomotor time (0.5mS .. 2.5mS)
+	// Conversion de la position 0..100% selon le fonctionnement du servo moteur
+	// Durée de pulse de minium 0.5mS et maximum 2.5mS
 	dutyCycleValue = 205+(position*2.04);
 	dCLow = dutyCycleValue&0x00FF;;
 	dCHigh = (dutyCycleValue&0x0F00) >>8;
 
-//	ACTION FOR MOTOR 1
-	i2cSelectSlave(PCA9680);
-	i2cWriteByte(smAddr, dCLow);							// Set the speed of the motor
+//	Applique les nouvelles valeures
+	i2cWriteByte(smAddr, dCLow);
 	i2cWriteByte(smAddr+1, dCHigh);
 }
+
+
 //================================================================================
 // CONFIGPWMDEVICE
-// Initial configuration for PWM Controller PCA9685
-//	- Select internal clock 25MHz
-//	- 50Hz operation (define for servomotors)
-//	- Non-inverted output
-//	- No auto-incrementation
+// Configuration initial pour le controleur PWM PCA9685
+//	- Séléction horloge interne 25MHz
+//	- Mode opération à 50Hz (Principalement pour la commande de servomoteurs)
+//	- Sorties non inversées
+//	- Ps d'auto incrementation
 //================================================================================
 unsigned char configPWMdevice(void){
 	unsigned char err;
 	err=i2cSelectSlave(PCA9680);
 
-	// MODE1 Register, sleep before config, internal clock 25MHz
+	// Registre MODE1, sleep before config, horloge interne à 25MHz
 	i2cWriteByte(0x00, 0x10);
-	//SMB_Write(PCA9680, 0x00, 0x10);                     // Initiate SMBus write
-	// Prescaler for 50Hz operation
-
+	// Prescaler pour opération 50Hz
 	i2cWriteByte(0xFE, 0x81);
-	//SMB_Write(PCA9680, 0xFE, 0x81);                     // Initiate SMBus write
-	// MODE 2 register, non inverted output
+
+	// Registre MODE 2, sorties non inversées
 	i2cWriteByte(0x01, 0x04);
-	//SMB_Write(PCA9680, 0x01, 0x04);                     // Initiate SMBus write
-	// ALL LED ON @ 0 clock
+	// TOUTES LED ON au clock 0
 	i2cWriteByte(0xFA, 0x00);
-	//SMB_Write(PCA9680, 0xFA, 0x00);                     // Initiate SMBus write
-	// ALL LED ON @ 0 clock
 	i2cWriteByte(0xFB, 0x00);
-	//SMB_Write(PCA9680, 0xFB, 0x00);                     // Initiate SMBus write
-	// MODE 1, System ready
+
+	// MODE 1, Système prêt,
 	i2cWriteByte(0x00, 0x81);
-	//SMB_Write(PCA9680, 0x00, 0x81);                     // Initiate SMBus write
+
 
 	return err;
 }
@@ -194,21 +204,21 @@ unsigned char configPWMdevice(void){
 
 //================================================================================
 // CONFIGGPIODEVICE
-// Initial configuration for GPIO Controller MCP2308
+// Configuration initiale pour le GPIO Controleur MCP2308
 //	- Non auto-incrementation
-//	- Pull-up enable
-//	- Pin as output
+//	- Pull-up activée
+//	- Pin en sortie
 //================================================================================
 unsigned char configGPIOdevice(void){
 	unsigned char err;
 
 	err=i2cSelectSlave(MCP2308);
 
-	// No auto-incrementation
+	// Pas de auto-incrementation
 	i2cWriteByte(0x05, 0x20);
-	// Pull up enable
+	// Pull up activée
 	i2cWriteByte(0x06, 0xFF);
-	// Pin as output
+	// Pin en sorties
 	i2cWriteByte(0x00, 0x00);
 	return err;
 }
@@ -218,6 +228,7 @@ unsigned char configGPIOdevice(void){
 
 // ---------------------------------------------------------------------------
 // SETMOTORDIRECTION
+// !!!!!!!!!!!!! FONCTION A RETRAVAILLER !!!!!!!!!!!!!!!!!!!
 // ---------------------------------------------------------------------------
 int setMotorDirection(int motorName, int direction){
 
@@ -245,10 +256,13 @@ int setMotorDirection(int motorName, int direction){
 
 // ---------------------------------------------------------------------------
 // SETMOTORSPEED
+// Applique la consigne de vélocité pour un moteur donné
+// Cette consigne n'est pas applique directement mais sera progressivement
+// atteinte par le gestionnaire d'acceleration
 // ---------------------------------------------------------------------------
 int setMotorSpeed(int motorName, int ratio){
 
-	// Vérification ratio max et min
+	// Vérification ratio max et min comprise entre 0..100%
 	if(ratio > 100)
 		ratio = 100;
 	if (ratio<0)
@@ -259,8 +273,10 @@ int setMotorSpeed(int motorName, int ratio){
 }
 
 // ------------------------------------------------------------------------------------
-// ONTIMEOUT50ms: Fcontion appelee chaque 50mS
-//
+// CHECKMOTORPOWER:
+// Fonction appelée periodiquement pour la gestion de l'acceleration
+// Décelération du moteur.
+// Elle va augmenté ou diminuer la velocite du moteur jusqu'a atteindre la consigne
 // ------------------------------------------------------------------------------------
 void checkDCmotorPower(void){
 	unsigned char i;
@@ -296,7 +312,8 @@ void checkDCmotorPower(void){
 
 // -------------------------------------------------------------------
 // setMotorAccelDecel
-// Modifie les valeur d'acceleration et decelaration du moteur
+// Défini les valeurs d'acceleration et decelaration du moteur
+// Valeur donnée en % de ce qu'il reste pour atteindre la consigne
 // -------------------------------------------------------------------
 void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent){
 
@@ -322,13 +339,16 @@ void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPerc
 // -------------------------------------------------------------------
 // GETSONARDISTANCE
 // Lecture de la distance mesuree au sonar [mm]
+// Retourn une valeures positve correspondant à la distance en mm
+// ou -1 si erreur de lecture
 // -------------------------------------------------------------------
-	int getSonarDistance(void){
+int getSonarDistance(void){
 	unsigned char err;
 	unsigned int SonarDistance_mm;
 
-	SonarDistance_mm=0;
-	err=i2cSelectSlave(EFM8BB);
+	err=i2cSelectSlave(EFM8BB);						// Séléction du CHIP
+
+	SonarDistance_mm=0;								// RAZ de la variable distance
 
 	if(!err){
 		SonarDistance_mm=i2cReadByte(20);
@@ -338,23 +358,104 @@ void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPerc
 }
 
 
-	// -------------------------------------------------------------------
-	// GETBATTERYVOLTAGE
-	// Lecture de la tension batterie
-	// -------------------------------------------------------------------
-	int getBatteryVoltage(void){
-		unsigned char err;
-		unsigned int batteryVoltage_mV;
+// -------------------------------------------------------------------
+// GETBATTERYVOLTAGE
+// Lecture de la tension batterie mesuree en mV
+// Retourne une valeures positve correspondant à la tension en mV
+// ou -1 si erreur de lecture
+// -------------------------------------------------------------------
+int getBatteryVoltage(void){
+	unsigned char err;
+	unsigned int batteryVoltage_mV;
 
-		batteryVoltage_mV=0;
-		err=i2cSelectSlave(EFM8BB);
+	err=i2cSelectSlave(EFM8BB);						// Séléction du CHIP
 
-		if(!err){
-			batteryVoltage_mV=i2cReadByte(10);
-			batteryVoltage_mV+=(i2cReadByte(11)<<8);
-			return batteryVoltage_mV;
-		}else return -1;
+	batteryVoltage_mV=0;							// RAZ de la variable
+
+	if(!err){
+		batteryVoltage_mV=i2cReadByte(10);
+		batteryVoltage_mV+=(i2cReadByte(11)<<8);
+		return batteryVoltage_mV;
+	}else return -1;
+}
+
+// -------------------------------------------------------------------
+// GETFREQUENCY
+// Get frequency measured on EFM8BB
+// ou -1 si erreur de lecture
+// -------------------------------------------------------------------
+int getFrequency(unsigned char wheelNb){
+	unsigned char err, regAddr;
+	unsigned int freq;
+
+
+	err=i2cSelectSlave(EFM8BB);						// Séléction du CHIP
+
+	if(wheelNb==0) regAddr = 40;
+	else regAddr = 41;
+
+	freq=0;							// RAZ de la variable
+
+	if(!err){
+		freq=(i2cReadByte(regAddr));
+		return freq;
+	}else return -1;
+}
+
+// -------------------------------------------------------------------
+// GETPULSECOUNTER
+// Get pulse counter on EFM8BB
+// ou -1 si erreur de lecture
+// -------------------------------------------------------------------
+int getPulseCounter(unsigned char wheelNb){
+	unsigned char err, regAddr;
+	unsigned int pulseCount;
+
+
+	err=i2cSelectSlave(EFM8BB);						// Séléction du CHIP
+
+	if(wheelNb==0) {
+		regAddr = 50;
 	}
+	else {
+		regAddr = 60;
+	}
+
+	pulseCount=0;							// RAZ de la variable
+
+	if(!err){
+		pulseCount=(i2cReadByte(regAddr));
+		pulseCount=pulseCount+(i2cReadByte(regAddr+1)<<8);
+		return pulseCount;
+	}else return -1;
+}
+
+// -------------------------------------------------------------------
+// CLEARWHEELDISTANCE
+// RetourReset to 0 the pulse counter on EFM8BB
+// ou -1 si erreur de lecture
+// -------------------------------------------------------------------
+int clearWheelDistance(unsigned char wheelNb){
+	unsigned char err, regAddr;
+	unsigned int pulseCount;
+
+
+	err=i2cSelectSlave(EFM8BB);						// Séléction du CHIP
+
+	if(wheelNb==0) {
+		regAddr = 52;
+	}
+	else {
+		regAddr = 62;
+	}
+
+	pulseCount=0;							// RAZ de la variable
+
+	if(!err){
+		pulseCount=(i2cReadByte(regAddr));
+		return pulseCount;
+	}else return -1;
+}
 
 // -------------------------------------------------------------------
 // GETDIGITALINPUT
