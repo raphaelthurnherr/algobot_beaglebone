@@ -24,6 +24,10 @@ unsigned char checkMotorPowerFlag;
 unsigned char t100msFlag;
 unsigned char t10secFlag;
 
+
+// ------------------------------------------
+// Programme principale TIMER
+// ------------------------------------------
 void *TimerTask (void * arg){
 	int i;
 	unsigned int cyclicTimer50ms;	// Compteur du timer cyclique 50mS
@@ -32,11 +36,13 @@ void *TimerTask (void * arg){
 
 	while(1){
 
-		// Controle successivement les timers avec fonction callback
+		// Controle successivement les timers pour la gestion du temps de
+		// fonctionnement des roues. Une fois le timeout atteind, appelle la fonction call-back
+		// de l'action à effectuer
 		for(i=0;i<10;i++){
 			if(myTimer[i][STOPTIME]!=0){						// Timer Actif (!=0), Ne provoque pas d'action si timer inactif
 				if(timeNow >= myTimer[i][STOPTIME]){			// Fin du timer ?
-					onTimeOut(myTimer[i][PTRFUNC], myTimer[i][ACTIONID],myTimer[i][WHEEL]);	// Appelle la fonction callback
+					onTimeOut(myTimer[i][PTRFUNC], myTimer[i][ACTIONID],myTimer[i][WHEEL]);			// Appelle la fonction callback à la fin du timer
 					// Libère l'espace timer
 					myTimer[i][STOPTIME]=myTimer[i][PTRFUNC]=myTimer[i][ACTIONID]=0;
 					myTimer[i][WHEEL]=-1;
@@ -74,7 +80,7 @@ void *TimerTask (void * arg){
 
 // ------------------------------------------------------------------------------------
 // TIMERMANAGER: Initialisation du gestionnaire de timer
-// -
+// - Démarre le thread
 // ------------------------------------------------------------------------------------
 int InitTimerManager(void){
 	// CREATION DU THREAD DE TIMER
@@ -98,8 +104,11 @@ int CloseTimerManager(void){
 }
 
 // ------------------------------------------------------------------------------------
-// CLOSETIMER: Fermeture du gestionnaire de timers
-// - Stop le thread timers
+// SETTIMERWHEEL: Paramètrage d'un timer pour le fonctionnement d' une roue selon en temps donné
+// time_ms: Durée de fonctionnement
+// *callback: Fonction callback à appeler à la fin du timer
+// actionNumber: Numéro d'action à attribuer
+// wheelName: No de la roue concernée par le fonctionnement
 // ------------------------------------------------------------------------------------
 int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int wheelName){
 
