@@ -10,31 +10,31 @@
 #define ERROR    6
 #define WARNING  7
 
-	// DEFINITION DES PARAMETRES DE TYPE COMMANDE
-	#define STOP     0
-	#define FORWARD  1
-	#define BACK     2
-	#define LEFT     3
-	#define RIGHT    4
-	#define ROTATE_LEFT 5
-	#define ROTATE_RIGHT 6
-	#define FW_SPIN_LEFT 7
-	#define FW_SPIN_RIGHT 8
-	#define BACK_SPIN_LEFT 9
-	#define BACK_SPIN_RIGHT 10
-	#define MOTOR_STATE		 11
-	#define LL_2WD			100				// LOW LEVEL WHEEL DIRECTIV
+// DEFINITION DES PARAMETRES DE TYPE COMMANDE
+#define STOP     0
+#define FORWARD  1
+#define BACK     2
+#define LEFT     3
+#define RIGHT    4
+#define ROTATE_LEFT 5
+#define ROTATE_RIGHT 6
+#define FW_SPIN_LEFT 7
+#define FW_SPIN_RIGHT 8
+#define BACK_SPIN_LEFT 9
+#define BACK_SPIN_RIGHT 10
+#define MOTOR_STATE		 11
+#define LL_2WD			100				// LOW LEVEL WHEEL DIRECTIV
 
-	// DEFINITION DES PARAMETRES DE TYPE REQUEST
-	#define DISTANCE   	   20
-	#define DISTANCE_MAP   21
-	#define DINPUT	       22
-	#define BATTERY		   30
+// DEFINITION DES PARAMETRES DE TYPE REQUEST
+#define DISTANCE   	   20
+#define DISTANCE_MAP   21
+#define DINPUT	       22
+#define BATTERY		   30
 
-	// DEFINITION DES MODES POUR TYPE DE COMMANDE
-	#define DISTCM		0
-	#define BATTVOLT    1
-	#define SENSORS_STATE    2
+// DEFINITION DES MODES POUR TYPE DE COMMANDE
+#define DISTCM		0
+#define BATTVOLT    1
+#define SENSORS_STATE    2
 
 
 struct m2wd{

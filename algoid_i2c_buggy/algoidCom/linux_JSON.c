@@ -181,7 +181,7 @@ void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType, 
 						switch(valStr){
 
 						case DISTCM :	jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);				// add object key:value pairs
-										jwObj_int("distCM", round((AlgoidResponse[i].value)/10));				// add object key:value pairs
+										jwObj_int("cm", round((AlgoidResponse[i].value)/10));				// add object key:value pairs
 										jwObj_int("angle", AlgoidResponse[i].DISTresponse.angle);				// add object key:value pairs
 										jwObj_string("event", AlgoidResponse[i].DISTresponse.event_state);				// add object key:value pairs
 										jwObj_int("event_lower", AlgoidResponse[i].DISTresponse.event_low);				// add object key:value pairs
@@ -196,8 +196,10 @@ void ackToJSON(char * buffer, int msgId, char* to, char * from, char * msgType, 
 										jwObj_int("event_higher", AlgoidResponse[i].BATTesponse.event_high);				// add object key:value pairs
 									    break;
 
-						case SENSORS_STATE : jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
-									   jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
+						case SENSORS_STATE :
+										jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
+										jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
+										jwObj_string("event", AlgoidResponse[i].DINresponse.event_state);				// add object key:value pairs
 									   break;
 						default:  	   break;
 
