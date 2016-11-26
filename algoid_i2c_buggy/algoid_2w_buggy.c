@@ -20,6 +20,7 @@
 #include "tools.h"
 #include "algoid_2wd_buggy.h"
 #include "timerManager.h"
+#include "hwManager.h"
 
 int ActionTable[10][3];
 
@@ -91,6 +92,10 @@ int main(void) {
 	if(InitTimerManager()) printf ("# Creation tâche timer : ERREUR\n");
 		else printf ("# Demarrage tache timer: OK\n");
 
+// Création de la tâche pour la gestion hardware
+	if(InitHwManager()) printf ("# Creation tâche hardware : ERREUR\n");
+		else printf ("# Demarrage tache hardware: OK\n");
+
 // Initialisation UDP pour broadcast IP Adresse
 	initUDP();
 
@@ -115,8 +120,7 @@ int main(void) {
 // --------------------------------------------------------------------
 
 	// ----------- DEBUT DE LA BOUCLE PRINCIPALE ----------
-	//clearWheelDistance(0);
-	//clearWheelDistance(1);
+
 	while(1){
 
 		// Contrôle de la messagerie, recherche d'éventuels messages ALGOID et effectue les traitements nécéssaire
@@ -147,7 +151,6 @@ int main(void) {
     		setServoPos(SRM1, test);
     		// Ende test
 
-    		battery[0] = getBatteryVoltage();							// Lecture de la tension batterie
 
     		// Envoie un message UDP sur le réseau, sur port 53530 (CF udpPublish.h)
     		// Avec le ID du buggy (fourni par le gestionnaire de messagerie)
@@ -164,8 +167,6 @@ int main(void) {
     	// - Récupération de la distance mesurée au sonar
     	// - Gestion des évenements batterie, digital inputs et distance
     	if(t100msFlag){
-			distance[0] = getSonarDistance();							// Distance au sonar, doit être plus grand que 0
-			if(distance[0]<0) printf("Erreur de lecture Distance");		// sinon erreur
 
 			DINEventCheck();											// Contôle de l'état des entrées numérique
 																		// Génère un évenement si changement d'état détecté
@@ -173,7 +174,7 @@ int main(void) {
 			distanceEventCheck();										// Provoque un évenement de type "distance" si la distance mesurée
 																		// est hors de la plage spécifiée par l'utilisateur
 
-			batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
+			//batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
 																		// est hors la plage spécifiée par les paramettre utilisateur
 
 			//unsigned char speed0 = getFrequency(0);
