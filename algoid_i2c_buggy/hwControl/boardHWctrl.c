@@ -1,7 +1,7 @@
 #include "boardHWctrl.h"
-#include "../timerManager.h"
+//#include "../timerManager.h"
 #include "libs/bbb_i2c.h"
-
+#include "../buggy_descriptor.h"
 
 void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
 unsigned char configPWMdevice(void);		// Configuration of the PCA9685 for 50Hz operation
@@ -266,8 +266,8 @@ int setMotorDirection(int motorName, int direction){
 
 	// Conversion No de moteur en adresse du registre du PWM controleur
 	switch(motorName){
-		case WHEEL_LEFT : 	motorAdress = DCM0;	break;
-		case WHEEL_RIGHT :  motorAdress = DCM1;	break;
+		case MOTOR_LEFT: 	motorAdress = DCM0;	break;
+		case MOTOR_RIGHT :  	motorAdress = DCM1;	break;
 		default : return(0);
 	}
 
@@ -297,7 +297,12 @@ int setMotorSpeed(int motorName, int ratio){
 	if (ratio<0)
 		ratio = 0;
 
-	motorDCtargetPower[motorName]=ratio;
+	switch(motorName){
+		case MOTOR_LEFT : motorDCtargetPower[0]=ratio; break;
+		case MOTOR_RIGHT : motorDCtargetPower[1]=ratio; break;
+		default : printf("\n function [setMotorSpeed] : undefine motor #%d", motorName); break;
+	}
+
 	return(1);
 }
 

@@ -3,12 +3,16 @@
 #define ACTION_ALGOID_ID 1
 #define ACTION_COUNT 2
 
+#define MILLISECOND   0
+#define CENTIMETER	  1
+
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
+#include "buggy_descriptor.h"
 #include "algoidCom/messagesManager.h"
 #include "algoidCom/linux_json.h"
 #include "algoidCom/udpPublish.h"
@@ -32,6 +36,9 @@ int distance[5], angle[5]={1,2,3,4,5};
 
 int battery[5];
 int DIN[5]={11, 22, 33, 44, 55};
+
+unsigned char wheelDistanceTarget[2];
+float startEncodeurValue[2];
 
 unsigned char distWarningSended;
 unsigned char DIST_EVENT_ENABLE[5] = {0,0,0,0,0};
@@ -57,10 +64,11 @@ int makeDistanceRequest(void);
 int makeBatteryRequest(void);
 
 int make2WDaction(void);
-int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time);
+int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value);
 int endWheelAction(int actionNumber, int wheelNumber);
+int checkMotorEncoder(int actionNumber, int encoderNumber);
 
-int getWDvalue(char * wheelName);
+int getWDvalue(int wheelName);
 char reportBuffer[256];
 
 
@@ -74,6 +82,7 @@ char reportBuffer[256];
 
 int main(void) {
 
+	system("clear");
 // Création de la tâche pour la gestion de la messagerie avec ALGOID
 	if(InitMessager()) printf ("# Creation tâche messagerie : ERREUR\n");
 	else printf ("# Demarrage tache Messager: OK\n");
@@ -106,8 +115,8 @@ int main(void) {
 // --------------------------------------------------------------------
 
 	// ----------- DEBUT DE LA BOUCLE PRINCIPALE ----------
-	clearWheelDistance(0);
-	clearWheelDistance(1);
+	//clearWheelDistance(0);
+	//clearWheelDistance(1);
 	while(1){
 
 		// Contrôle de la messagerie, recherche d'éventuels messages ALGOID et effectue les traitements nécéssaire
@@ -116,7 +125,7 @@ int main(void) {
 			switch(AlgoidCommand.msgType){
 				case COMMAND : processAlgoidCommand(); break;						// Traitement du message de type "COMMAND"
 				case REQUEST : processAlgoidRequest(); break;						// Traitement du message de type "REQUEST"
-				default : break;
+				default : printf("\[main]->Commande non prise en charge..."); break;
 			}
 		}
 
@@ -138,6 +147,8 @@ int main(void) {
     		setServoPos(SRM1, test);
     		// Ende test
 
+    		battery[0] = getBatteryVoltage();							// Lecture de la tension batterie
+
     		// Envoie un message UDP sur le réseau, sur port 53530 (CF udpPublish.h)
     		// Avec le ID du buggy (fourni par le gestionnaire de messagerie)
     		char udpMessage[50];
@@ -153,7 +164,6 @@ int main(void) {
     	// - Récupération de la distance mesurée au sonar
     	// - Gestion des évenements batterie, digital inputs et distance
     	if(t100msFlag){
-			battery[0] = getBatteryVoltage();							// Tension batterie
 			distance[0] = getSonarDistance();							// Distance au sonar, doit être plus grand que 0
 			if(distance[0]<0) printf("Erreur de lecture Distance");		// sinon erreur
 
@@ -166,16 +176,16 @@ int main(void) {
 			batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
 																		// est hors la plage spécifiée par les paramettre utilisateur
 
-			unsigned char speed0 = getFrequency(0);
-			unsigned char speed1 = getFrequency(1);
-			unsigned int dist0 = getPulseCounter(0);
-			unsigned int dist1 = getPulseCounter(1);
+			//unsigned char speed0 = getFrequency(0);
+			//unsigned char speed1 = getFrequency(1);
+			//unsigned int dist0 = getPulseCounter(0);
+			//unsigned int dist1 = getPulseCounter(1);
 
-			if(dist0>=10000)clearWheelDistance(0);
+			//if(dist0>=10000)clearWheelDistance(0);
 
 
-			printf("\nFrequency: D %.1f   G %.1f   ||| Dist D: %.1fcm  Dist G: %.1fcm", speed0*0.285, speed1*0.285, dist0*0.285, dist1*0.285);
-			printf(" dist US: %d cm", distance[0]/10);
+			//printf("\Speed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed0*0.285, speed1*0.285, dist0*0.285, dist1*0.285);
+			//printf(" dist US: %d cm\n", distance[0]/10);
 			t100msFlag=0;												// Quittance le flag 100mS
     	}
 
@@ -238,8 +248,8 @@ int make2WDaction(void){
 
 	// Recherche s'il y a des paramètres pour chaque roue
 	// Des paramètres recu pour une roue crée une action à effectuer
-	if(getWDvalue("left")>=0) actionCount++;
-	if(getWDvalue("right")>=0) actionCount++;
+	if(getWDvalue(MOTOR_LEFT)>=0) actionCount++;
+	if(getWDvalue(MOTOR_RIGHT)>=0) actionCount++;
 
 	// Ouverture d'une tâche pour les toutes les actions du message algoid à effectuer
 	// Recois un numéro de tache en retour
@@ -250,27 +260,34 @@ int make2WDaction(void){
 		printf("Creation de tache: #%d\n", myTaskId);
 
 		// Récupération des paramètres d'action  pour la roue "LEFT"
-		ptrData=getWDvalue("left");
+		ptrData=getWDvalue(MOTOR_LEFT);
 		if(ptrData >=0){
 			// Enregistre la donnée d'acceleration si disponible (<0)
 			if(AlgoidCommand.msgValArray[ptrData].accel!=0 || AlgoidCommand.msgValArray[ptrData].decel!=0)
-				setMotorAccelDecel(WHEEL_LEFT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
+				setMotorAccelDecel(MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
 			// Effectue l'action sur la roue
-			setWheelAction(myTaskId, WHEEL_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, AlgoidCommand.msgValArray[ptrData].time);
+			if(AlgoidCommand.msgValArray[ptrData].cm != 0)
+				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, CENTIMETER, AlgoidCommand.msgValArray[ptrData].cm);
+			else
+				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, MILLISECOND, AlgoidCommand.msgValArray[ptrData].time);
 		}
 
 		// Récupération des paramètres d'action  pour la roue "RIGHT"
-		ptrData=getWDvalue("right");
+		ptrData=getWDvalue(MOTOR_RIGHT);
 		if(ptrData >=0){
 			// Enregistre la donnée d'acceleration si disponible (<0)
 			if(AlgoidCommand.msgValArray[ptrData].accel>0 || AlgoidCommand.msgValArray[ptrData].decel>0)
-				setMotorAccelDecel(WHEEL_RIGHT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
-			setWheelAction(myTaskId, WHEEL_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, AlgoidCommand.msgValArray[ptrData].time);
+				setMotorAccelDecel(MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
+
+			if(AlgoidCommand.msgValArray[ptrData].cm != 0)
+				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, CENTIMETER, AlgoidCommand.msgValArray[ptrData].cm);
+			else
+				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, MILLISECOND, AlgoidCommand.msgValArray[ptrData].time);
 		}
 
 		// Retourne un message ALGOID si velocité hors tolérences
 		if((AlgoidCommand.msgValArray[ptrData].velocity < -100) ||(AlgoidCommand.msgValArray[ptrData].velocity > 100))
-			sendResponse(AlgoidCommand.msgID, "warning", "2wd", "Value out of range (-100...+100)", 0);
+			sendResponse(AlgoidCommand.msgID, WARNING, LL_2WD, 0);
 		return 0;
 	}
 	else return 1;
@@ -284,7 +301,7 @@ int make2WDaction(void){
 // - Démarrage du mouvement de la roue spécifiée
 // - Vélocité entre -100 et +100 qui défini le sens de rotation du moteur
 // -------------------------------------------------------------------
-int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
+int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value){
 	int myDirection;
 	int setTimerResult;
 	int endOfTask;
@@ -301,13 +318,20 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, int time){
 
 	// Démarre de timer d'action sur la roue et spécifie la fonction call back à appeler en time-out
 	// Valeur en retour >0 signifie que l'action "en retour" à été écrasée
-	setTimerResult=setTimerWheel(time, &endWheelAction, actionNumber, wheelNumber);
+	switch(unit){
+		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelNumber); break;
+		case  CENTIMETER:   wheelDistanceTarget[wheelNumber]=value;
+							startEncodeurValue[wheelNumber]=getPulseCounter(wheelNumber)*0.285;
+						    setTimerResult=setTimerWheel(35, &checkMotorEncoder, actionNumber, wheelNumber);
+						    break;
+		default: printf("\n!!! ERROR Function [setWheelAction] -> undefined unit");break;
+	}
 
 	if(setTimerResult!=0){								// Timer pret, action effectuée
 		if(setTimerResult>1){							// Le timer à été écrasé par la nouvelle action en retour car sur la même roue
 			endOfTask=removeBuggyTask(setTimerResult);	// Supprime l'ancienne tâche qui à été écrasée par la nouvelle action
 			if(endOfTask){
-				sendResponse(endOfTask, "event","2wd", 0, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+				sendResponse(endOfTask, EVENT, LL_2WD, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 				sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 				printf(reportBuffer);									// Affichage du message dans le shell
 				sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
@@ -353,11 +377,37 @@ int endWheelAction(int actionNumber, int wheelNumber){
 
 	// Contrôle que toutes les actions ont été effectuée pour la commande recue dans le message ALGOID
 	if(endOfTask){
-		sendResponse(endOfTask, "event","2wd", 0, 0);
+		sendResponse(endOfTask, EVENT,LL_2WD, 0);
 		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
 		sendMqttReport(endOfTask, reportBuffer);
 	}
+
+	return 0;
+}
+
+
+// -------------------------------------------------------------------
+// CHECKMOTORENCODER
+// Contrôle la distance parcourue et stop la roue si destination atteinte
+// Fonction appelée après le timout défini par l'utilisateur
+// -------------------------------------------------------------------
+int checkMotorEncoder(int actionNumber, int encoderNumber){
+	float distance;					// Variable de distance parcourue depuis le start
+
+	distance = getPulseCounter(encoderNumber);
+	if(distance >=0){
+		distance = (distance*0.285) - startEncodeurValue[encoderNumber];
+    	usleep(2200);
+	}else  printf("\n ERROR: I2CBUS READ\n");
+
+
+	//printf("\n Encodeur #%d -> %.2f cm", encoderNumber, distance, startEncodeurValue[encoderNumber]);
+
+	if(distance >= wheelDistanceTarget[encoderNumber])
+		endWheelAction(actionNumber, encoderNumber);
+	else
+		setTimerWheel(50, &checkMotorEncoder, actionNumber, encoderNumber);
 
 	return 0;
 }
@@ -368,19 +418,13 @@ int endWheelAction(int actionNumber, int wheelNumber){
 // [Vélocité, acceleration, sens de rotation et temps d'action] pour la roue spécifiée
 // Retourne un pointeur sur le champs de paramètre correspondant à la rou spécifié
 // -------------------------------------------------------------------
-int getWDvalue(char* wheelName){
+int getWDvalue(int wheelName){
 	int i;
 	int searchPtr = -1;
-	char searchText[50];
-	char * mySearch;
 
 	// Recherche dans les donnée recues la valeur correspondante au paramètre "wheelName"
 	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
-		memset(searchText, 0, 50);
-		mySearch=AlgoidCommand.msgValArray[i].wheel;
-		strncpy(searchText,mySearch, strlen(AlgoidCommand.msgValArray[i].wheel));
-
-		if(!strcmp(searchText, wheelName))
+		if(wheelName == AlgoidCommand.msgValArray[i].wheel)
 			searchPtr=i;
 	}
 	return searchPtr;
@@ -490,7 +534,7 @@ int makeSensorsRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, "response", "sensors", SENSORS_STATE, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, RESPONSE, DINPUT, AlgoidCommand.msgValueCnt);
 	return (1);
 }
 
@@ -534,7 +578,7 @@ int makeDistanceRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, "response", "distance", DISTCM, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, RESPONSE, DISTANCE, AlgoidCommand.msgValueCnt);
 
 		return 1;
 }
@@ -578,7 +622,7 @@ int makeBatteryRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, "response", "battery", BATTVOLT, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, RESPONSE, BATTERY, AlgoidCommand.msgValueCnt);
 		return 1;
 }
 
@@ -599,14 +643,14 @@ void distanceEventCheck(void){
 				if(distWarningSended==0){													// N'envoie l' event qu'une seule fois
 					AlgoidResponse[i].DISTresponse.id=i;
 					AlgoidResponse[i].value=distance[i];
-					sendResponse(AlgoidCommand.msgID, "event", "distance", DISTCM, 1);
+					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
 					distWarningSended=1;
 				}
 			}
 			else if (distWarningSended==1){													// Mesure de distance revenu dans la plage
 					AlgoidResponse[i].DISTresponse.id=i;									// Et n'envoie qu'une seule fois le message
 					AlgoidResponse[i].value=distance[i];
-					sendResponse(AlgoidCommand.msgID, "event", "distance", DISTCM, 1);
+					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
 					distWarningSended=0;
 			}
 		}
@@ -631,7 +675,7 @@ void batteryEventCheck(void){
 				if(battWarningSended==0){														// N'envoie qu'une seule fois l'EVENT
 					AlgoidResponse[i].BATTesponse.id=i;
 					AlgoidResponse[i].value=battery[i];
-					sendResponse(AlgoidCommand.msgID, "event", "battery", BATTVOLT, 1);
+					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
 					battWarningSended=1;
 				}
 			}
@@ -639,7 +683,7 @@ void batteryEventCheck(void){
 			else if (battWarningSended==1 && battery[i]>(BATT_EVENT_LOW[i]+50)){				// Mesure tension dans la plage
 					AlgoidResponse[i].BATTesponse.id=i;											// n'envoie qu'une seule fois après
 					AlgoidResponse[i].value=battery[i];											// une hysterese de 50mV
-					sendResponse(AlgoidCommand.msgID, "event", "battery", BATTVOLT, 1);
+					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
 					battWarningSended=0;
 			}
 		}
@@ -674,5 +718,5 @@ void DINEventCheck(void){
 	}
 
 	if(DINevent>0)
-		sendResponse(AlgoidCommand.msgID, "event", "din", SENSORS_STATE, DINevent);
+		sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINevent);
 }

@@ -28,10 +28,6 @@
 #define BUGGY_FORWARD 1
 #define BUGGY_BACK 2
 
-
-#define WHEEL_LEFT 0
-#define WHEEL_RIGHT 1
-
 extern unsigned char buggyBoardInit(void);
 
 extern void DCmotorState(unsigned char state);

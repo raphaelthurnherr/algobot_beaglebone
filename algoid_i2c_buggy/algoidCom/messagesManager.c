@@ -20,7 +20,7 @@ char ClientID[50]="BUGGY_";
 void sendMqttReport(int msgId, char * msg);
 
 int  mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_message *message);
-void sendResponse(int msgId, char * msgType, char * msgParam, char * msgValue, unsigned char valCnt);
+void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt);
 int pushMsgStack(void);
 int pullMsgStack(unsigned char ptrStack);
 char clearMsgStack(unsigned char ptrStack);
@@ -75,14 +75,14 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 				// Enregistrement du message dans la pile
 				lastMessage=pushMsgStack();
 				if(lastMessage>=0){
-					sendResponse(AlgoidMsgRXStack[lastMessage].msgID, "ack", 0, 0, 0);
+					sendResponse(AlgoidMsgRXStack[lastMessage].msgID, ACK, 0, 0);
 					printf("Mis en file d'attente\n");
 				}
 				else{
 					printf("ERREUR: File d'attente pleine !\n");
 				}
 			}else{
-				sendResponse(AlgoidMsgRXStack[lastMessage].msgID,"error", 0, 0, 0);
+				sendResponse(AlgoidMsgRXStack[lastMessage].msgID, ERROR, 0, 0);
 				printf("\n! MESSAGE ALGOID INCORRECT RECU !\n");
 				sendMqttReport(-1, "! MESSAGE ALGOID INCORRECT RECU !");
 			}
@@ -263,9 +263,35 @@ int mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_mess
 // Retourne un message MQTT
 // -------------------------------------------------------------------
 
-void sendResponse(int msgId, char * msgType, char * msgParam, char * msgValue, unsigned char valCnt){
+void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt){
 	char MQTTbuf[1024];
-	ackToJSON(MQTTbuf, msgId, "algoid", ClientID, msgType, msgParam, msgValue, valCnt);
+	char ackType[15], ackParam[15];
+
+	// Génération du texte de reponse TYPE pour message MQTT
+	switch(msgType){
+		case COMMAND : strcpy(ackType, "command"); break;
+		case REQUEST : strcpy(ackType, "request"); break;
+		case ACK : strcpy(ackType, "ack"); break;
+		case RESPONSE : strcpy(ackType, "response"); break;
+		case EVENT : strcpy(ackType, "event"); break;
+		case NEGOC : strcpy(ackType, "negoc"); break;
+		case ERROR : strcpy(ackType, "error"); break;
+		case WARNING : strcpy(ackType, "warning"); break;
+		default : strcpy(ackType, "unknown"); break;
+	}
+
+	// Génération du texte de reponse TYPE pour message MQTT
+		switch(msgParam){
+			case STOP : strcpy(ackParam, "stop"); break;
+			case LL_2WD : strcpy(ackParam, "2wd"); break;
+			case MOVE : strcpy(ackParam, "move"); break;
+			case DINPUT : strcpy(ackParam, "din"); break;
+			case BATTERY : strcpy(ackParam, "battery"); break;
+			case DISTANCE : strcpy(ackParam, "distance"); break;
+			default : strcpy(ackParam, "unknown"); break;
+		}
+
+	ackToJSON(MQTTbuf, msgId, "algoid", ClientID, ackType, ackParam, msgParam, valCnt);
 	mqttPutMessage("MONRET", MQTTbuf, strlen(MQTTbuf));
 }
 
