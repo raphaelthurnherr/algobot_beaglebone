@@ -15,4 +15,8 @@ typedef enum organ{
 	MOTOR_ENCODER_RIGHT
 }t_organ;
 
+#define BUGGY_STOP 		0
+#define BUGGY_FORWARD 	1
+#define BUGGY_BACK 		2
+
 #endif /* ALGOIDCOM_BUGGY_DESCRIPTOR_H_ */

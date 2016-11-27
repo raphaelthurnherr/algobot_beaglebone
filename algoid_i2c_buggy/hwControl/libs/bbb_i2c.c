@@ -66,4 +66,5 @@ extern int i2cReadByte(unsigned char regAddress){
 int i2cWriteByte(unsigned char regAddress, unsigned char data){
 	i2c_smbus_write_byte_data(file, regAddress, data);
 	usleep(1300);
+	return 0;
 }

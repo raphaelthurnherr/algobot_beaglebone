@@ -16,7 +16,7 @@
 #include "algoidCom/messagesManager.h"
 #include "algoidCom/linux_json.h"
 #include "algoidCom/udpPublish.h"
-#include "hwControl/boardHWctrl.h"
+//#include "hwControl/boardHWctrl.h"
 #include "tools.h"
 #include "algoid_2wd_buggy.h"
 #include "timerManager.h"
@@ -98,18 +98,21 @@ int main(void) {
 
 // Initialisation UDP pour broadcast IP Adresse
 	initUDP();
-
+/*
 // Initialisation des périphériques de la carte hardware
 	if(buggyBoardInit()){
 		printf("# Initialisation carte HW: OK\n");
 		sendMqttReport(0,"# Initialisation carte HW: OK\n");
 		// Test
-		setLedPower(LED0, 50);
+		setLedPower(0, 50);
 	}
 	else{
 		printf("# Initialisation carte HW: ERREUR\n");
 		sendMqttReport(0,"# Initialisation carte HW: ERREUR\n");
 	}
+*/
+
+
 // --------------------------------------------------------------------
 // BOUCLE DU PROGRAMME PRINCIPAL
 // - Messagerie avec ALGOID, attentes de messages en provenance de l'hôte -> Démarrage du traitement des commandes
@@ -148,7 +151,7 @@ int main(void) {
     		unsigned char test;
     		if(test<25) test =100;
     		else test = 15;
-    		setServoPos(SRM1, test);
+    		setServoPosition(1, test);
     		// Ende test
 
 
@@ -170,20 +173,16 @@ int main(void) {
 
 			DINEventCheck();											// Contôle de l'état des entrées numérique
 																		// Génère un évenement si changement d'état détecté
-
+			distance[0] = getSonarDistance();
 			distanceEventCheck();										// Provoque un évenement de type "distance" si la distance mesurée
 																		// est hors de la plage spécifiée par l'utilisateur
 
-			//batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
+			battery[0] = getBatteryVoltage();
+			batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
 																		// est hors la plage spécifiée par les paramettre utilisateur
 
-			//unsigned char speed0 = getFrequency(0);
-			//unsigned char speed1 = getFrequency(1);
-			//unsigned int dist0 = getPulseCounter(0);
-			//unsigned int dist1 = getPulseCounter(1);
 
-			//if(dist0>=10000)clearWheelDistance(0);
-
+//			printf("\n [main loop] Battery: %dmV   Sonar:%dcm",battery[0], distance[0]);
 
 			//printf("\Speed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed0*0.285, speed1*0.285, dist0*0.285, dist1*0.285);
 			//printf(" dist US: %d cm\n", distance[0]/10);
@@ -322,7 +321,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int 
 	switch(unit){
 		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelNumber); break;
 		case  CENTIMETER:   wheelDistanceTarget[wheelNumber]=value;
-							startEncodeurValue[wheelNumber]=getPulseCounter(wheelNumber)*0.285;
+							startEncodeurValue[wheelNumber]=getMotorPulses(wheelNumber)*0.285;
 						    setTimerResult=setTimerWheel(35, &checkMotorEncoder, actionNumber, wheelNumber);
 						    break;
 		default: printf("\n!!! ERROR Function [setWheelAction] -> undefined unit");break;
@@ -340,7 +339,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int 
 		}
 
 		// Défini le "nouveau" sens de rotation à applique au moteur ainsi que la consigne de vitesse
-		if(setMotorDirection(wheelNumber,myDirection)){							// Sens de rotation
+		if(setMotorDirection(wheelNumber, myDirection)){							// Sens de rotation
 			setMotorSpeed(wheelNumber, veloc);									// Vitesse
 
 			// Envoie de message ALGOID et SHELL
@@ -349,7 +348,7 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int 
 			sendMqttReport(actionNumber, reportBuffer);
 		}
 		else{
-			sprintf(reportBuffer, "Error, impossible to start wheel %d\n",wheelNumber, veloc, time);
+			sprintf(reportBuffer, "Error, impossible to start wheel %d\n",wheelNumber);
 			printf(reportBuffer);
 			sendMqttReport(actionNumber, reportBuffer);
 		}
@@ -396,7 +395,7 @@ int endWheelAction(int actionNumber, int wheelNumber){
 int checkMotorEncoder(int actionNumber, int encoderNumber){
 	float distance;					// Variable de distance parcourue depuis le start
 
-	distance = getPulseCounter(encoderNumber);
+	distance = getMotorPulses(encoderNumber);
 	if(distance >=0){
 		distance = (distance*0.285) - startEncodeurValue[encoderNumber];
     	usleep(2200);
@@ -468,7 +467,7 @@ int createBuggyTask(int MsgId, int actionCount){
 				}
 		}
 	}
-	sprintf(reportBuffer, "ERREUR: Table de tâches pleine\n", actionID);
+	sprintf(reportBuffer, "ERREUR: Table de tâches pleine\n");
 	sendMqttReport(actionID, reportBuffer);
 	return(0);
 }
@@ -562,8 +561,8 @@ int makeDistanceRequest(void){
 				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=1;
 				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=0;
 				// Evemenent haut
-				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_high*10;
-				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_low*10;
+				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_high;
+				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_low;
 			};
 
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){

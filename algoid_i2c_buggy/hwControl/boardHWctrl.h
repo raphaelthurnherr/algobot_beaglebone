@@ -2,7 +2,7 @@
 #define BOARDHWCTRL_H_
 
 // Device addresses (7 bits, lsb is a don't care)
-#define  PCA9680               	0x40 	// Device address for PWM controller
+#define  PCA9685               	0x40 	// Device address for PWM controller
 #define  MCP2308               	0x20	// Device address for GPIO controller
 #define  EFM8BB               	0x0A	// Device address for EFM8BB microcontroller
 
@@ -19,35 +19,24 @@
 #define SRM1					0x40	// PCA9685 Output 14 address (Servomotor 1 pwm)
 #define SRM2					0x44	// PCA9685 Output 15 address (Servomotor 2 pwm)
 
-#define MCW 		0
-#define MCCW		1
-#define MSTOP 	2
-
-
-#define BUGGY_STOP 0
-#define BUGGY_FORWARD 1
-#define BUGGY_BACK 2
+#define MCW 			0
+#define MCCW			1
+#define MSTOP 			2
 
 extern unsigned char buggyBoardInit(void);
+extern unsigned char motorDCadr[2];			// Valeur de la puissance moteur
+extern void MCP2308_DCmotorState(unsigned char state);
+extern void MCP2308_DCmotorSetRotation(unsigned char motorAdr, unsigned char direction);
+extern void PCA9685_DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle);
+extern void PCA9685_setServoPos(unsigned char smAddr, unsigned char position);
+void PCA9685_setLedPower(unsigned char smAddr, unsigned char power);
+//extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
 
-extern void DCmotorState(unsigned char state);
-extern void DCmotorSetRotation(unsigned char motorAdr, unsigned char direction);
-extern void DCmotorSetSpeed(unsigned char motorAdr, unsigned char dutyCycle);
-extern void setServoPos(unsigned char smAddr, unsigned char position);
-void setLedPower(unsigned char smAddr, unsigned char power);
-extern void setDCmotorPower(unsigned char motorAdr, unsigned char power);
+extern int EFM8BB_readSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
+extern char EFM8BB_readDigitalInput(unsigned char InputNr);			// Get digital input state in mm from the EFM8BB microcontroller
+extern int EFM8BB_readBatteryVoltage(void);							// Get the battery voltage in mV from EFM8BB microcontroller
+extern int EFM8BB_readFrequency(unsigned char wheelNb);				// Get frequency measured on EFM8BB
+extern int EFM8BB_readPulseCounter(unsigned char wheelNb);			// Get pulse counter on EFM8BB
+extern int EFM8BB_clearWheelDistance(unsigned char wheelNb);		// Reset to 0 the pulse counter on EFM8BB
 
-extern void checkDCmotorPower(void);
-
-extern int setMotorDirection(int motorName, int direction);
-extern int setMotorSpeed(int motorName, int ratio);
-extern void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);
-
-extern unsigned char getMotorPower(unsigned char motorNr);	// Get the actual power of selected motor
-extern int getSonarDistance(void);							// Get distance in mm from the EFM8BB microcontroller
-extern char getDigitalInput(unsigned char InputNr);			// Get digital input state in mm from the EFM8BB microcontroller
-extern int getBatteryVoltage(void);							// Get the battery voltage in mV from EFM8BB microcontroller
-extern int getFrequency(unsigned char wheelNb);				// Get frequency measured on EFM8BB
-extern int getPulseCounter(unsigned char wheelNb);			// Get pulse counter on EFM8BB
-extern int clearWheelDistance(unsigned char wheelNb);		// Reset to 0 the pulse counter on EFM8BB
 #endif

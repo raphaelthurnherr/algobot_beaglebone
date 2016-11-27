@@ -126,7 +126,7 @@ int pushMsgStack(void){
 //			else
 //				printf("mode: %s   value: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].mode, AlgoidMsgRXStack[ptrMsgRXstack].value);
 		}
-	*/
+*/
 //END DEBUG
 		ptrMsgRXstack++;
 		return ptrMsgRXstack-1;
@@ -135,7 +135,6 @@ int pushMsgStack(void){
 
 int pullMsgStack(unsigned char ptrStack){
 		int i;
-
 		if(AlgoidMsgRXStack[ptrStack].msgType!=-1){
 			AlgoidCommand=AlgoidMsgRXStack[ptrStack];
 

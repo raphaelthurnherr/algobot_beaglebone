@@ -10,7 +10,7 @@
 
 int InitTimerManager(void);						// Ouverture du thread Timer
 int CloseTimerManager(void);					// Fermeture du thread Timer
-int setTimerWheel(int time_ms, int (*callback)(int, int),int actionNumber, int wheelName);		// Paramètrage d'un timer pour
+int setTimerWheel(int time_ms, int (*callback)(int, int), int actionNumber, int wheelName);		// Paramètrage d'un timer pour
 																								// le temps de fonctionnement d'une roue
 
 extern unsigned char checkMotorPowerFlag;		// A MODIFIER PAR UN TEMPS
