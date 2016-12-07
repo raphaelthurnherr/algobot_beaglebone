@@ -15,5 +15,5 @@ int InitMessager(void);
 int pullMsgStack(unsigned char ptrStack);
 int CloseMessager(void);
 void sendMqttReport(int msgId, char * msg);
-void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt);
+void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt);
 #endif /* MESSAGESMANAGER_H_ */

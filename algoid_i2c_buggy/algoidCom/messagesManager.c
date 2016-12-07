@@ -10,7 +10,7 @@
 #include "messagesManager.h"
 #include "mqttProtocol.h"
 #include "linux_json.h"
-
+#include "../buggy_descriptor.h"
 
 // Thread Messager
 pthread_t th_messager;
@@ -20,7 +20,7 @@ char ClientID[50]="BUGGY_";
 void sendMqttReport(int msgId, char * msg);
 
 int  mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_message *message);
-void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt);
+void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt);
 int pushMsgStack(void);
 int pullMsgStack(unsigned char ptrStack);
 char clearMsgStack(unsigned char ptrStack);
@@ -52,12 +52,10 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 		printf("# Connection au broker MQTT IP: %s avec ID: %s\n",ADDRESS,ClientID   );
 		if(!mqttAddRXChannel("MONTEST")){
 			printf("# Inscription au topic: OK\n");
-
 		}
 		else {
 			printf("# Inscription au topic: ERREUR\n");
 		}
-
 	}else {
 		printf("# Connexion au broker MQTT impossible !\n");
 	}
@@ -71,18 +69,18 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 	    	//printf("[DEBUG] message: %s", MqttDataBuffer);
 	    	// RECEPTION DES DONNES UTILES
 			if(GetAlgoidMsg(AlgoidMessageRX, MqttDataBuffer)>0){
-
 				// Enregistrement du message dans la pile
 				lastMessage=pushMsgStack();
 				if(lastMessage>=0){
-					sendResponse(AlgoidMsgRXStack[lastMessage].msgID, ACK, 0, 0);
+					sendResponse(AlgoidMessageRX.msgID, ACK, AlgoidMessageRX.msgParam, 0);
 					printf("Mis en file d'attente\n");
 				}
 				else{
 					printf("ERREUR: File d'attente pleine !\n");
 				}
 			}else{
-				sendResponse(AlgoidMsgRXStack[lastMessage].msgID, ERROR, 0, 0);
+
+				sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgType, AlgoidMessageRX.msgParam, 0);
 				printf("\n! MESSAGE ALGOID INCORRECT RECU !\n");
 				sendMqttReport(-1, "! MESSAGE ALGOID INCORRECT RECU !");
 			}
@@ -135,6 +133,8 @@ int pushMsgStack(void){
 
 int pullMsgStack(unsigned char ptrStack){
 		int i;
+		unsigned char result;
+
 		if(AlgoidMsgRXStack[ptrStack].msgType!=-1){
 			AlgoidCommand=AlgoidMsgRXStack[ptrStack];
 
@@ -151,7 +151,7 @@ int pullMsgStack(unsigned char ptrStack){
 				strcpy(AlgoidCommand.msgTo, "unknown");
 			}
 
-			// Déplace les element de la pile
+			// Déplace les elements de la pile
 			for(i=ptrStack;i<9;i++){
 				AlgoidMsgRXStack[ptrStack]=AlgoidMsgRXStack[ptrStack+1];
 				ptrStack++;
@@ -166,8 +166,7 @@ int pullMsgStack(unsigned char ptrStack){
 			AlgoidMsgRXStack[9].msgValueCnt=0;
 
 			for(i=0;i<AlgoidMsgRXStack[9].msgValueCnt;i++){
-//				strcpy(AlgoidMsgRXStack[9].sens_id[i], "");
-//				AlgoidMsgRXStack[9].sens_id[i]=-1;
+				AlgoidMsgRXStack[9].msgValArray[i].wheel=UNKNOWN;
 			}
 
 			return 1;
@@ -187,9 +186,6 @@ char clearMsgStack(unsigned char ptrStack){
 			AlgoidMsgRXStack[ptrStack].msgType=-1;
 
 			for(i=0;i<AlgoidMsgRXStack[ptrStack].msgValueCnt;i++){
-//				strcpy(AlgoidMsgRXStack[ptrStack].sens_type, "");
-//				AlgoidMsgRXStack[ptrStack].sens_id[i]=-1;
-
 				strcpy(AlgoidMsgRXStack[ptrStack].msgValArray[i].wheel, "");
 				AlgoidMsgRXStack[ptrStack].msgValArray[i].time=-1;
 				AlgoidMsgRXStack[ptrStack].msgValArray[i].velocity=-1;
@@ -262,9 +258,10 @@ int mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_mess
 // Retourne un message MQTT
 // -------------------------------------------------------------------
 
-void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt){
+void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt){
 	char MQTTbuf[1024];
 	char ackType[15], ackParam[15];
+
 
 	// Génération du texte de reponse TYPE pour message MQTT
 	switch(msgType){
@@ -274,21 +271,23 @@ void sendResponse(int msgId, int msgType, int msgParam, unsigned char valCnt){
 		case RESPONSE : strcpy(ackType, "response"); break;
 		case EVENT : strcpy(ackType, "event"); break;
 		case NEGOC : strcpy(ackType, "negoc"); break;
-		case ERROR : strcpy(ackType, "error"); break;
+		case ERR_TYPE : strcpy(ackType, "error"); break;
 		case WARNING : strcpy(ackType, "warning"); break;
 		default : strcpy(ackType, "unknown"); break;
 	}
 
-	// Génération du texte de reponse TYPE pour message MQTT
-		switch(msgParam){
-			case STOP : strcpy(ackParam, "stop"); break;
-			case LL_2WD : strcpy(ackParam, "2wd"); break;
-			case MOVE : strcpy(ackParam, "move"); break;
-			case DINPUT : strcpy(ackParam, "din"); break;
-			case BATTERY : strcpy(ackParam, "battery"); break;
-			case DISTANCE : strcpy(ackParam, "distance"); break;
-			default : strcpy(ackParam, "unknown"); break;
-		}
+// Génération du texte de reponse TYPE pour message MQTT
+	switch(msgParam){
+		case STOP : strcpy(ackParam, "stop"); break;
+		case LL_2WD : strcpy(ackParam, "2wd"); break;
+		case SERVO : strcpy(ackParam, "servo"); break;
+		case MOVE : strcpy(ackParam, "move"); break;
+		case DINPUT : strcpy(ackParam, "din"); break;
+		case BATTERY : strcpy(ackParam, "battery"); break;
+		case DISTANCE : strcpy(ackParam, "distance"); break;
+		case ERR_PARAM : strcpy(ackParam, "error"); break;
+		default : strcpy(ackParam, "unknown"); break;
+	}
 
 	ackToJSON(MQTTbuf, msgId, "algoid", ClientID, ackType, ackParam, msgParam, valCnt);
 	mqttPutMessage("MONRET", MQTTbuf, strlen(MQTTbuf));
