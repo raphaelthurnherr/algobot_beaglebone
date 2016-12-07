@@ -56,9 +56,10 @@ int setMotorDirection(int motorName, int direction);
 void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
 unsigned char getMotorPower(unsigned char motorNr);											// Retourne la velocité actuelle d'un moteur
 
-void setServoPosition(unsigned char smAddr, unsigned char position);
+void setServoPosition(unsigned char smName, unsigned char angle);
 void setLedPower(unsigned char smAddr, unsigned char power);
 
+void processCommandQueue(void);
 void execCommand(void (*ptrFunc)(char, int), char adr, int cmd);
 int set_i2c_command_queue(int (*callback)(char, int),char adr, int cmd);		//
 // ------------------------------------------
@@ -71,7 +72,7 @@ void *hwTask (void * arg){
 		printf("# Initialisation carte HW: OK\n");
 		sendMqttReport(0,"# Initialisation carte HW: OK\n");
 		// Test
-		setLedPower(0, 50);
+		setLedPower(0x10, 100);
 	}
 	else{
 		printf("# Initialisation carte HW: ERREUR\n");
@@ -96,26 +97,10 @@ void *hwTask (void * arg){
 			case 80	: break;
 			case 90	: break;
 			case 100 : {
-//					printf("\n[hwManager] Battery: %dmV ultrasonic: %dcm DIN0: %d  DIN1: %d Left: %.1f  Right: %.1f \n", buggySensor.battery, buggySensor.usonic,
-	//				buggySensor.din0, buggySensor.din1, buggySensor.left_motor.pulseFromStartup*0.285, buggySensor.right_motor.pulseFromStartup*0.285);
+	//				printf("\n[hwManager] Battery: %dmV ultrasonic: %dcm DIN0: %d  DIN1: %d Left: %.1f  Right: %.1f \n", buggySensor.battery, buggySensor.usonic,
+	//			buggySensor.din0, buggySensor.din1, buggySensor.left_motor.pulseFromStartup*0.285, buggySensor.right_motor.pulseFromStartup*0.285);
 					break;}
-
-			default: break;
-		}
-
-		if(i2c_command_queuing[0][CALLBACK]!=0){
-			// ENVOIE DE LA COMMANDE I2C
-			execCommand(i2c_command_queuing[0][CALLBACK], i2c_command_queuing[0][ADR], i2c_command_queuing[0][CMD]);
-			printf("[hwManager] Commande executé !\n");
-			// DECALAGE DE LA PILE
-
-			for(i=0;i<50;i++){
-				i2c_command_queuing[i][CALLBACK] = i2c_command_queuing[i+1][CALLBACK];
-				i2c_command_queuing[i][ADR] = i2c_command_queuing[i+1][ADR];
-				i2c_command_queuing[i][CMD] = i2c_command_queuing[i+1][CMD];
-			}
-			i2c_command_queuing[i][CALLBACK]=i2c_command_queuing[i][ADR]=i2c_command_queuing[i][CMD]=0;
-
+			default: if(i2c_command_queuing[0][CALLBACK]!=0)processCommandQueue(); break;
 		}
 
 		// Reset le compteur au bout de 100mS
@@ -123,7 +108,7 @@ void *hwTask (void * arg){
 			timeCount_ms++;
 		else timeCount_ms=0;
 
-		usleep(5000);
+		usleep(2000);
 	}
 	pthread_exit (0);
 }
@@ -354,17 +339,21 @@ int set_i2c_command_queue(int (*callback)(char, int),char adr, int cmd){
 		i2c_command_queuing[freeIndex][CMD] =  cmd;
 	}
 
-	printf("\nPILE DE COMMANDE I2C\n");
-	for(i=0;i<20;i++){
-		printf("#%d  callback: %d, adr: %d cmd: %d\n",i ,i2c_command_queuing[i][CALLBACK],i2c_command_queuing[i][ADR],i2c_command_queuing[i][CMD]);
-	}
 
 	return freeIndex;
 }
 
 
-void setServoPosition(unsigned char smAddr, unsigned char position){
-	set_i2c_command_queue(&PCA9685_setServoPos, smAddr, position);
+void setServoPosition(unsigned char smName, unsigned char angle){
+	char smAddr;
+
+	switch(smName){
+		case SERVO_0 : smAddr=SRM0; break;
+		case SERVO_1 : smAddr=SRM1; break;
+		case SERVO_2 : smAddr=SRM2; break;
+		default: break;
+	}
+	set_i2c_command_queue(&PCA9685_setServoPos, smAddr, angle);
 }
 
 void setLedPower(unsigned char smAddr, unsigned char power){
@@ -378,3 +367,21 @@ void setLedPower(unsigned char smAddr, unsigned char power){
 void execCommand(void (*ptrFunc)(char, int), char adr, int cmd){
 	(*ptrFunc)(adr, cmd);		// Appelle de la fonction call back prédéfinie par *ptrFonc avec les paramètre recus
 }
+
+
+void processCommandQueue(void){
+	int i;
+	// ENVOIE DE LA COMMANDE I2C
+
+	//printf("#%d  callback: %d, adr: %d cmd: %d\n",0 ,i2c_command_queuing[0][CALLBACK],i2c_command_queuing[0][ADR],i2c_command_queuing[0][CMD]);
+	execCommand(i2c_command_queuing[0][CALLBACK], i2c_command_queuing[0][ADR], i2c_command_queuing[0][CMD]);
+	// DECALAGE DE LA PILE
+
+	for(i=0;i<50;i++){
+		i2c_command_queuing[i][CALLBACK] = i2c_command_queuing[i+1][CALLBACK];
+		i2c_command_queuing[i][ADR] = i2c_command_queuing[i+1][ADR];
+		i2c_command_queuing[i][CMD] = i2c_command_queuing[i+1][CMD];
+	}
+	i2c_command_queuing[49][CALLBACK]=i2c_command_queuing[49][ADR]=i2c_command_queuing[49][CMD]=0;
+}
+

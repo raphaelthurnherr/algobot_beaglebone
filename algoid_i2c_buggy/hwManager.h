@@ -22,7 +22,7 @@ extern void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char de
 extern int setMotorDirection(int motorName, int direction);
 extern void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
 extern unsigned char getMotorPower(unsigned char motorNr);			// Get the actual power of selected motor
-extern void setServoPosition(unsigned char smAddr, unsigned char position);
+extern void setServoPosition(unsigned char smName, unsigned char angle);
 extern void setLedPower(unsigned char smAddr, unsigned char power);
 
 
