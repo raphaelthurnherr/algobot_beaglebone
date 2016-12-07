@@ -1,24 +1,25 @@
-
 // DEFINITION DES TYPES DE MESSAGE
 typedef enum msgtype{
+	ERR_TYPE,
 	COMMAND,
 	REQUEST,
 	ACK,
 	RESPONSE,
 	EVENT,
 	NEGOC,
-	ERROR,
 	WARNING
 } t_msgtype;
 
 // DEFINITION DES PARAMETRES DE TYPE PARAMETRE
 typedef enum msgparam{
+	ERR_PARAM,
 	STOP,
 	MOVE,
 	LL_2WD,
 	DINPUT,
 	DISTANCE,
-	BATTERY
+	BATTERY,
+	SERVO
 }t_msgparam;
 
 
@@ -51,6 +52,12 @@ struct mBattery{
 	int event_high;
 };
 
+struct mServo{
+	int id;
+	char state[50];
+	int angle;
+};
+
 // Structure d'un message algoid recu
 typedef struct JsonCommand{
 	char msgTo[32];
@@ -66,6 +73,7 @@ typedef struct JsonCommand{
 	struct mDin DINsens[20];
 	struct mDistance DISTsens[20];
 	struct mBattery BATTsens[20];
+	struct mServo SERVOmotor[20];
 	// UNION ???
 
 }ALGOID;

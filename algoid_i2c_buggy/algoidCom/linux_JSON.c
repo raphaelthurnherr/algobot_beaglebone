@@ -20,6 +20,9 @@
 #define KEY_MESSAGE_VALUE_SONAR "{'MsgData'{'MsgValue'[*{'sonar'"
 #define KEY_MESSAGE_VALUE_ANGLE "{'MsgData'{'MsgValue'[*{'angle'"
 #define KEY_MESSAGE_VALUE_BATT "{'MsgData'{'MsgValue'[*{'battery'"
+#define KEY_MESSAGE_VALUE_SERVO "{'MsgData'{'MsgValue'[*{'servo'"
+
+#define KEY_MESSAGE_VALUE_STATE "{'MsgData'{'MsgValue'[*{'state'"
 
 #define KEY_MESSAGE_VALUE_EVENT_STATE "{'MsgData'{'MsgValue'[*{'event'"
 #define KEY_MESSAGE_VALUE_EVENT_LOWER "{'MsgData'{'MsgValue'[*{'event_lower'"
@@ -60,8 +63,6 @@ ALGOID myReplyMessage;
 char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 	struct jReadElement element;
 	int i;
-	int result;
-
 
 	// ENTETE DE MESSAGE
 		jRead_string((char *)srcBuffer, KEY_TO, AlgoidMessageRX.msgTo, 15, NULL );
@@ -75,39 +76,42 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 
 				jRead_string((char *)srcBuffer,  KEY_MESSAGE_TYPE,myDataString,15, NULL);
 
-				AlgoidMessageRX.msgType= -1;
+				AlgoidMessageRX.msgType= ERR_TYPE;
 				if(!strcmp(myDataString, "command")) AlgoidMessageRX.msgType = COMMAND;
 				if(!strcmp(myDataString, "request")) AlgoidMessageRX.msgType = REQUEST;
 				if(!strcmp(myDataString, "ack")) AlgoidMessageRX.msgType = ACK;
 				if(!strcmp(myDataString, "response")) AlgoidMessageRX.msgType = RESPONSE;
 				if(!strcmp(myDataString, "event")) AlgoidMessageRX.msgType = EVENT;
 				if(!strcmp(myDataString, "negoc")) AlgoidMessageRX.msgType = NEGOC;
-				if(!strcmp(myDataString, "error")) AlgoidMessageRX.msgType = ERROR;
+				if(!strcmp(myDataString, "error")) AlgoidMessageRX.msgType = ERR_TYPE;
 
 	// MESSAGE PARAM
 				// Clear string
 				for(i=0;i<20;i++) myDataString[i]=0;
 				jRead_string((char *)srcBuffer,  KEY_MESSAGE_PARAM,myDataString,15, NULL);
 
-				AlgoidMessageRX.msgParam=-1;
+				AlgoidMessageRX.msgParam=ERR_PARAM;
 					if(!strcmp(myDataString, "stop")) AlgoidMessageRX.msgParam = STOP;
 					if(!strcmp(myDataString, "move")) AlgoidMessageRX.msgParam = MOVE;
 					if(!strcmp(myDataString, "2wd")) AlgoidMessageRX.msgParam = LL_2WD;
+					if(!strcmp(myDataString, "servo")) AlgoidMessageRX.msgParam = SERVO;
 
 					if(!strcmp(myDataString, "distance")) AlgoidMessageRX.msgParam = DISTANCE;
 					if(!strcmp(myDataString, "battery")) AlgoidMessageRX.msgParam = BATTERY;
 					if(!strcmp(myDataString, "din")) AlgoidMessageRX.msgParam = DINPUT;
-
 
 				  jRead((char *)srcBuffer, KEY_MESSAGE_VALUE, &element );
 
 					// RECHERCHE DATA ARRAY
 				  if(element.dataType == JREAD_ARRAY ){
 					  AlgoidMessageRX.msgValueCnt=element.elements;
+
 				      for(i=0; i<element.elements; i++ )    // loop for no. of elements in JSON
 				      {
 				    	  if(AlgoidMessageRX.msgParam == LL_2WD){
-				    		  result = jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_WHEEL, myDataString, 15, &i );
+
+				    		  AlgoidMessageRX.msgValArray[i].wheel=UNKNOWN;	// Initialisation roue inconnue
+				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_WHEEL, myDataString, 15, &i );
 				    		  if(!strcmp(myDataString, "left")) AlgoidMessageRX.msgValArray[i].wheel = MOTOR_LEFT;
 				    		  if(!strcmp(myDataString, "right")) AlgoidMessageRX.msgValArray[i].wheel = MOTOR_RIGHT;
 
@@ -138,18 +142,29 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_STATE, AlgoidMessageRX.BATTsens[i].event_state, 15, &i );
 				    		  AlgoidMessageRX.BATTsens[i].id= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_BATT, &i);
 				    		  AlgoidMessageRX.BATTsens[i].event_low= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_LOWER, &i);
-				    		  AlgoidMessageRX.BATTsens[i].event_high= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_HIGHER, &i);				    	  }
+				    		  AlgoidMessageRX.BATTsens[i].event_high= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_EVENT_HIGHER, &i);
+				    	  }
 
-				    	  if(result == 0)
-				    		  return 0;
+				    	  if(AlgoidMessageRX.msgParam == SERVO){
+				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_STATE, AlgoidMessageRX.SERVOmotor[i].state, 15, &i );
+				    		  int organId=jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_SERVO, &i);
+				    		  switch(organId){
+				    		  	  case 0 : AlgoidMessageRX.SERVOmotor[i].id=SERVO_0; break;
+				    		  	  case 1 : AlgoidMessageRX.SERVOmotor[i].id=SERVO_1; break;
+				    		  	  case 2 : AlgoidMessageRX.SERVOmotor[i].id=SERVO_2; break;
+				    		  	  default : AlgoidMessageRX.SERVOmotor[i].id=-1; break;
+				    		  }
+
+				    		  AlgoidMessageRX.SERVOmotor[i].angle= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_ANGLE, &i);
+				    	  }
 				    }
-				  }else AlgoidMessageRX.msgValueCnt=0;
-
-				  if(AlgoidMessageRX.msgParam < 0 || AlgoidMessageRX.msgType < 0){
-					  return 0;
 				  }
+				  else AlgoidMessageRX.msgValueCnt=0;
 
-				  return 1;
+				  if((AlgoidMessageRX.msgParam == ERR_PARAM) || (AlgoidMessageRX.msgType == ERR_TYPE)){
+					  return 0;
+				  }else
+					  return 1;
 
 }
 
