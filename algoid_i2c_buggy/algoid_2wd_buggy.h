@@ -8,6 +8,4 @@
 #ifndef ALGOID_2WD_BUGGY_H_
 #define ALGOID_2WD_BUGGY_H_
 
-
-
 #endif /* ALGOID_2WD_BUGGY_H_ */

@@ -1,4 +1,3 @@
-
 #define TASK_NUMBER 0
 #define ACTION_ALGOID_ID 1
 #define ACTION_COUNT 2
