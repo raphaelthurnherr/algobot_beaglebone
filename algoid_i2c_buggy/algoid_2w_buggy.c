@@ -34,6 +34,7 @@ void DINEventCheck(void);
 
 // Data sensors
 int distance[5], angle[5]={1,2,3,4,5};
+int speed[5], dist[5];
 
 int battery[5];
 int DIN[5]={11, 22, 33, 44, 55};
@@ -65,11 +66,13 @@ int makeDistanceRequest(void);
 int makeBatteryRequest(void);
 
 int make2WDaction(void);
+int makeServoAction(void);
 int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value);
 int endWheelAction(int actionNumber, int wheelNumber);
 int checkMotorEncoder(int actionNumber, int encoderNumber);
 
 int getWDvalue(int wheelName);
+int getServoSetting(int servoName);
 char reportBuffer[256];
 
 
@@ -123,7 +126,6 @@ int main(void) {
 // --------------------------------------------------------------------
 
 	// ----------- DEBUT DE LA BOUCLE PRINCIPALE ----------
-
 	while(1){
 
 		// Contrôle de la messagerie, recherche d'éventuels messages ALGOID et effectue les traitements nécéssaire
@@ -147,14 +149,6 @@ int main(void) {
 
 		// Contrôle du TIMER 10seconde
     	if(t10secFlag){
-    		// Test periscope
-    		unsigned char test;
-    		if(test<25) test =100;
-    		else test = 15;
-    		setServoPosition(1, test);
-    		// Ende test
-
-
     		// Envoie un message UDP sur le réseau, sur port 53530 (CF udpPublish.h)
     		// Avec le ID du buggy (fourni par le gestionnaire de messagerie)
     		char udpMessage[50];
@@ -178,14 +172,21 @@ int main(void) {
 																		// est hors de la plage spécifiée par l'utilisateur
 
 			battery[0] = getBatteryVoltage();
-			batteryEventCheck();										// Provoque un évenement de type "batterie" si la tension
-																		// est hors la plage spécifiée par les paramettre utilisateur
+			batteryEventCheck();
+
+			dist[0]=getMotorPulses(0);
+			dist[1]=getMotorPulses(1);
+
+			speed[0]=getMotorFrequency(0);
+			speed[1]=getMotorFrequency(1);
+			// est hors la plage spécifiée par les paramettre utilisateur
 
 
-//			printf("\n [main loop] Battery: %dmV   Sonar:%dcm",battery[0], distance[0]);
+			//printf("\n [main loop] Battery: %dmV   Sonar:%dcm",battery[0], distance[0]);
 
-			//printf("\Speed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed0*0.285, speed1*0.285, dist0*0.285, dist1*0.285);
-			//printf(" dist US: %d cm\n", distance[0]/10);
+			printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed[0]*0.285, speed[1]*0.285, dist[0]*0.285, dist[1]*0.285);
+			printf(" dist US: %d cm\n", distance[0]);
+
 			t100msFlag=0;												// Quittance le flag 100mS
     	}
 
@@ -210,8 +211,10 @@ int main(void) {
 int processAlgoidCommand(void){
 	switch(AlgoidCommand.msgParam){
 		case LL_2WD : 	make2WDaction(); break;			// Action avec en paramètre MOTEUR, VELOCITE, ACCELERATION, TEMPS d'action
+		case SERVO  : 	makeServoAction();break;
 		default : break;
 	}
+
 	return 0;
 }
 
@@ -257,7 +260,7 @@ int make2WDaction(void){
 
 	// Démarrage des actions
 	if(myTaskId>0){
-		printf("Creation de tache: #%d\n", myTaskId);
+		printf("Creation de tache WHEEL: #%d avec %d actions\n", myTaskId, actionCount);
 
 		// Récupération des paramètres d'action  pour la roue "LEFT"
 		ptrData=getWDvalue(MOTOR_LEFT);
@@ -295,12 +298,60 @@ int make2WDaction(void){
 
 
 // -------------------------------------------------------------------
+// makeServoAction
+//
+// -------------------------------------------------------------------
+int makeServoAction(void){
+	int ptrData;
+	int myTaskId;
+	int endOfTask;
+
+	unsigned char actionCount=0;
+	unsigned char action;
+
+	// Recherche s'il y a des paramètres pour chaque roue
+	// Des paramètres recu pour une roue crée une action à effectuer
+	if(getServoSetting(SERVO_0)>=0) actionCount++;
+	if(getServoSetting(SERVO_1)>=0) actionCount++;
+	if(getServoSetting(SERVO_2)>=0) actionCount++;
+
+	// Ouverture d'une tâche pour les toutes les actions du message algoid à effectuer
+	// Recois un numéro de tache en retour
+	myTaskId=createBuggyTask(AlgoidCommand.msgID, actionCount);			//
+
+	// Démarrage des actions
+	if(myTaskId>0){
+		printf("Creation de tache SERVO: #%d avec %d actions\n", myTaskId, actionCount);
+
+		for(ptrData=0; action < actionCount && ptrData<10; ptrData++){
+			if(AlgoidCommand.SERVOmotor[ptrData].id>0){
+				setServoPosition(AlgoidCommand.SERVOmotor[ptrData].id, AlgoidCommand.SERVOmotor[ptrData].angle);
+
+				endOfTask=removeBuggyTask(myTaskId);
+				if(endOfTask>0){
+					sprintf(reportBuffer, "FIN DES ACTIONS \"SERVO\" pour la tache #%d\n", endOfTask);
+					sendResponse(endOfTask, EVENT, SERVO, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+					printf(reportBuffer);									// Affichage du message dans le shell
+					sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
+				}
+
+				action++;
+			}
+		}
+	}
+	return 0;
+}
+
+
+
+// -------------------------------------------------------------------
 // SETWHEELACTION
 // Effectue l'action sur une roue spécifiée
 // - Démarrage du timer avec definition de fonction call-back, et no d'action
 // - Démarrage du mouvement de la roue spécifiée
 // - Vélocité entre -100 et +100 qui défini le sens de rotation du moteur
 // -------------------------------------------------------------------
+
 int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value){
 	int myDirection;
 	int setTimerResult;
@@ -426,6 +477,24 @@ int getWDvalue(int wheelName){
 	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
 		if(wheelName == AlgoidCommand.msgValArray[i].wheel)
 			searchPtr=i;
+	}
+	return searchPtr;
+}
+
+// -------------------------------------------------------------------
+// GETSERVOSETTING
+// Recherche dans le message algoid, les paramètres
+// [velocité, angle, etat] pour une servomoteur spécifié
+// Retourne un pointeur sur le champs de paramètre correspondant au servomoteur spécifié
+// -------------------------------------------------------------------
+int getServoSetting(int servoName){
+	int i;
+	int searchPtr = -1;
+
+	// Recherche dans les donnée recues la valeur correspondante au paramètre "wheelName"
+	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
+		if(servoName == AlgoidCommand.SERVOmotor[i].id)
+		searchPtr=i;
 	}
 	return searchPtr;
 }
@@ -720,3 +789,5 @@ void DINEventCheck(void){
 	if(DINevent>0)
 		sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINevent);
 }
+
+
