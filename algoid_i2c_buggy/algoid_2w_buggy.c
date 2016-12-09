@@ -31,6 +31,8 @@ void distanceEventCheck(void);
 void batteryEventCheck(void);
 void DINEventCheck(void);
 
+
+////----------------------------------- A REMPLACER PAR STRUCT
 // Data sensors
 int distance[5], angle[5]={1,2,3,4,5};
 int speed[5], dist[5];
@@ -38,8 +40,8 @@ int speed[5], dist[5];
 int battery[5];
 int DIN[5]={11, 22, 33, 44, 55};
 
-unsigned char wheelDistanceTarget[2];
-float startEncodeurValue[2];
+float startEncoderValue[2];
+float stopEncoderValue[2];
 
 unsigned char distWarningSended;
 unsigned char DIST_EVENT_ENABLE[5] = {0,0,0,0,0};
@@ -54,6 +56,24 @@ unsigned int BATT_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
 
 unsigned char DIN_EVENT_ENABLE[5]={0,0,0,0,0};
 unsigned char DIN_HAS_CHANGE[5]={0,0,0,0,0};
+//// -----------------------------------------FIN REMPLACEMENT
+/*
+struct o_wheel{
+	int pulseFromStartup;
+	int frequency;
+};
+
+typedef struct tsensors{
+	unsigned char din0;
+	unsigned char din1;
+	int usonic;
+	int battery;
+	struct o_wheel left_encoder;
+	struct o_wheel right_encoder;
+}t_sensor;
+
+t_sensor buggy;
+*/
 
 
 // Traitement du message algoid recu
@@ -66,9 +86,9 @@ int makeBatteryRequest(void);
 
 int make2WDaction(void);
 int makeServoAction(void);
-int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value);
+int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int value);
 int endWheelAction(int actionNumber, int wheelNumber);
-int checkMotorEncoder(int actionNumber, int encoderNumber);
+int checkMotorEncoder(int actionNumber, int encoderName);
 
 int getWDvalue(int wheelName);
 int getServoSetting(int servoName);
@@ -125,6 +145,7 @@ int main(void) {
 // --------------------------------------------------------------------
 
 	// ----------- DEBUT DE LA BOUCLE PRINCIPALE ----------
+
 	while(1){
 
 		// Contrôle de la messagerie, recherche d'éventuels messages ALGOID et effectue les traitements nécéssaire
@@ -173,8 +194,8 @@ int main(void) {
 			battery[0] = getBatteryVoltage();
 			batteryEventCheck();
 
-			dist[0]=getMotorPulses(0);
-			dist[1]=getMotorPulses(1);
+			dist[0]=getMotorPulses(MOTOR_LEFT);
+			dist[1]=getMotorPulses(MOTOR_RIGHT);
 
 			speed[0]=getMotorFrequency(0);
 			speed[1]=getMotorFrequency(1);
@@ -351,10 +372,11 @@ int makeServoAction(void){
 // - Vélocité entre -100 et +100 qui défini le sens de rotation du moteur
 // -------------------------------------------------------------------
 
-int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int value){
+int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int value){
 	int myDirection;
 	int setTimerResult;
 	int endOfTask;
+	unsigned char wheelNumber;
 
 	// Conversion de la vélocité de -100...+100 en direction AVANCE ou RECULE
 	if(veloc > 0)
@@ -369,10 +391,12 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int 
 	// Démarre de timer d'action sur la roue et spécifie la fonction call back à appeler en time-out
 	// Valeur en retour >0 signifie que l'action "en retour" à été écrasée
 	switch(unit){
-		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelNumber); break;
-		case  CENTIMETER:   wheelDistanceTarget[wheelNumber]=value;
-							startEncodeurValue[wheelNumber]=getMotorPulses(wheelNumber)*0.285;
-						    setTimerResult=setTimerWheel(35, &checkMotorEncoder, actionNumber, wheelNumber);
+		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelName); break;
+		case  CENTIMETER:   wheelNumber = getOrganNumber(wheelName);
+							startEncoderValue[wheelNumber]=getMotorPulses(wheelName)*0.285;
+							stopEncoderValue[wheelNumber] = startEncoderValue[wheelNumber]+ value;
+							//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", wheelNumber, distance, startEncoderValue[wheelNumber], stopEncoderValue[wheelNumber]);
+						    setTimerResult=setTimerWheel(50, &checkMotorEncoder, actionNumber, wheelName);			// Démarre un timer pour contrôle de distance chaque 35mS
 						    break;
 		default: printf("\n!!! ERROR Function [setWheelAction] -> undefined unit");break;
 	}
@@ -389,16 +413,16 @@ int setWheelAction(int actionNumber, int wheelNumber, int veloc, char unit, int 
 		}
 
 		// Défini le "nouveau" sens de rotation à applique au moteur ainsi que la consigne de vitesse
-		if(setMotorDirection(wheelNumber, myDirection)){							// Sens de rotation
-			setMotorSpeed(wheelNumber, veloc);									// Vitesse
+		if(setMotorDirection(wheelName, myDirection)){							// Sens de rotation
+			setMotorSpeed(wheelName, veloc);									// Vitesse
 
 			// Envoie de message ALGOID et SHELL
-			sprintf(reportBuffer, "Start wheel %d with velocity %d for time %d\n",wheelNumber, veloc, time);
+			sprintf(reportBuffer, "Start wheel %d with velocity %d for time %d\n",wheelNumber, veloc, value);
 			printf(reportBuffer);
 			sendMqttReport(actionNumber, reportBuffer);
 		}
 		else{
-			sprintf(reportBuffer, "Error, impossible to start wheel %d\n",wheelNumber);
+			sprintf(reportBuffer, "Error, impossible to start wheel %d\n",wheelName);
 			printf(reportBuffer);
 			sendMqttReport(actionNumber, reportBuffer);
 		}
@@ -423,11 +447,11 @@ int endWheelAction(int actionNumber, int wheelNumber){
 	// Retire l'action de la table et vérification si toute les actions sont effectuées
 	// Pour la tâche en cours donnée par le message ALGOID
 
-	endOfTask=removeBuggyTask(actionNumber);
+	endOfTask = removeBuggyTask(actionNumber);
 
 	// Contrôle que toutes les actions ont été effectuée pour la commande recue dans le message ALGOID
 	if(endOfTask){
-		sendResponse(endOfTask, EVENT,LL_2WD, 0);
+		sendResponse(endOfTask, RESPONSE, LL_2WD, 0);
 		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
 		sendMqttReport(endOfTask, reportBuffer);
@@ -437,27 +461,30 @@ int endWheelAction(int actionNumber, int wheelNumber){
 }
 
 
-// -------------------------------------------------------------------
+// ----------------------------------------------------------------------
 // CHECKMOTORENCODER
 // Contrôle la distance parcourue et stop la roue si destination atteinte
-// Fonction appelée après le timout défini par l'utilisateur
-// -------------------------------------------------------------------
-int checkMotorEncoder(int actionNumber, int encoderNumber){
-	float distance;					// Variable de distance parcourue depuis le start
+// Fonction appelée après le timout défini par l'utilisateur.
+// -----------------------------------------------------------------------
 
-	distance = getMotorPulses(encoderNumber);
+int checkMotorEncoder(int actionNumber, int encoderName){
+	float distance;					// Variable de distance parcourue depuis le start
+	unsigned char encoderNumber;
+
+	encoderNumber = getOrganNumber(encoderName);
+
+	distance = getMotorPulses(encoderName);
+
 	if(distance >=0){
-		distance = (distance*0.285) - startEncodeurValue[encoderNumber];
+		distance = (distance*0.285);
     	usleep(2200);
 	}else  printf("\n ERROR: I2CBUS READ\n");
+	//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", encoderNumber, startEncoderValue[encoderNumber], stopEncoderValue[encoderNumber]);
 
-
-	//printf("\n Encodeur #%d -> %.2f cm", encoderNumber, distance, startEncodeurValue[encoderNumber]);
-
-	if(distance >= wheelDistanceTarget[encoderNumber])
-		endWheelAction(actionNumber, encoderNumber);
+	if(distance >= stopEncoderValue[encoderNumber])
+		endWheelAction(actionNumber, encoderName);
 	else
-		setTimerWheel(50, &checkMotorEncoder, actionNumber, encoderNumber);
+		setTimerWheel(50, &checkMotorEncoder, actionNumber, encoderName);
 
 	return 0;
 }

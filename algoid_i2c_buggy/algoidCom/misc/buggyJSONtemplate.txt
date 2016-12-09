@@ -4,17 +4,50 @@
 	"MsgFrom" : "MQTTFX", 
 	"MsgData" : {
 		"MsgType" : "command", 
+		"MsgParam" : "servo",
+	        "MsgValue": [
+           	 {"servo": 1, "angle":"0"},
+           	 {"servo": 0, "angle":"100"}
+        ]
+	}
+}
+
+//------------ 
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "command", 
+		"MsgParam" : "safety",
+	        "MsgValue": [
+           	 {"din": 0, "stop":"on", "event" : "on"},
+           	 {"din": 1, "stop":"on", "event" : "off"},
+           	 {"sonar": 0, "stop":"on", "event_lower" : 15},
+           	 {"battery": 0, "stop":"on", "event_lower" : "7000"}
+        ]
+	}
+}
+
+//------------ 
+
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "command", 
 		"MsgParam" : "2wd", 
 		"MsgValue" : [ {
 			"wheel" : "right", 
 			"velocity" : -25,
-			"time" : 10000,
+			"time" : 3000,
 			"decel":50,
 			"accel":20
 		}, {
 			"wheel" : "left", 
-			"velocity" : -25,
-			"time" : 10000,
+			"velocity" : 25,
+			"time" : 3000,
 			"accel":20,
 			"decel":50
 		} ]

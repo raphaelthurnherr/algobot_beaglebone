@@ -18,7 +18,7 @@
 // Thread Messager
 pthread_t th_hwManager;
 
-struct o_motor{
+struct o_encoder{
 	int pulseFromStartup;
 	int frequency;
 };
@@ -28,8 +28,8 @@ typedef struct tsensors{
 	unsigned char din1;
 	int usonic;
 	int battery;
-	struct o_motor left_motor;
-	struct o_motor right_motor;
+	struct o_encoder left_encoder;
+	struct o_encoder right_encoder;
 }t_sensor;
 
 t_sensor buggySensor;
@@ -44,11 +44,13 @@ unsigned char motorDCdecelValue[2]={25,25};			// Valeur d'acceleration des moteu
 
 
 int getMotorFrequency(unsigned char motorNb);	// Retourne la fréquence actuelle mesuree sur l'encodeur
-int getMotorPulses(unsigned char motorNb);		// Retourne le nombre d'impulsion d'encodeur moteur depuis le démarrage
-char getDigitalInput(unsigned char inputNb);	// Retourne l'état de l'entrée numérique spécifiée
+int getMotorPulses(unsigned char motorName);		// Retourne le nombre d'impulsion d'encodeur moteur depuis le démarrage
+char getDigitalInput(unsigned char inputNumber);	// Retourne l'état de l'entrée numérique spécifiée
 int getSonarDistance(void);						// Retourne la distance en cm
 int getBatteryVoltage(void);					// Retourne la tension battery en mV
 
+char getOrganNumber(int organName);		// Retourne le numéro du moteur 0..xx selon le nom d'organe spécifié
+unsigned char getOrganI2Cregister(unsigned char organName); // Retourne l'adresse du registre correspondant au nom de l'organe
 
 extern int setMotorSpeed(int motorName, int ratio);
 void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent);		// Défini l'accéleration/deceleration d'un moteur
@@ -71,8 +73,6 @@ void *hwTask (void * arg){
 	if(buggyBoardInit()){
 		printf("# Initialisation carte HW: OK\n");
 		sendMqttReport(0,"# Initialisation carte HW: OK\n");
-		// Test
-		setLedPower(0x10, 100);
 	}
 	else{
 		printf("# Initialisation carte HW: ERREUR\n");
@@ -87,8 +87,8 @@ void *hwTask (void * arg){
 
 		// Sequencage des messages sur bus I2C à interval régulier
 		switch(timeCount_ms){
-			case 10	: buggySensor.left_motor.pulseFromStartup = EFM8BB_readPulseCounter(0); break;
-			case 20	: buggySensor.right_motor.pulseFromStartup = EFM8BB_readPulseCounter(1);;break;
+			case 10	: buggySensor.left_encoder.pulseFromStartup = EFM8BB_readPulseCounter(0); break;
+			case 20	: buggySensor.right_encoder.pulseFromStartup = EFM8BB_readPulseCounter(1);;break;
 			case 30	: buggySensor.din0 = EFM8BB_readDigitalInput(0); break;
 			case 40	: buggySensor.din1 = EFM8BB_readDigitalInput(1); break;
 			case 50	: buggySensor.usonic = EFM8BB_readSonarDistance()/10; break;
@@ -98,7 +98,7 @@ void *hwTask (void * arg){
 			case 90	: break;
 			case 100 : {
 	//				printf("\n[hwManager] Battery: %dmV ultrasonic: %dcm DIN0: %d  DIN1: %d Left: %.1f  Right: %.1f \n", buggySensor.battery, buggySensor.usonic,
-	//			buggySensor.din0, buggySensor.din1, buggySensor.left_motor.pulseFromStartup*0.285, buggySensor.right_motor.pulseFromStartup*0.285);
+	//			buggySensor.din0, buggySensor.din1, buggySensor.left_encoder.pulseFromStartup*0.285, buggySensor.right_encoder.pulseFromStartup*0.285);
 					break;}
 			default: if(i2c_command_queuing[0][CALLBACK]!=0)processCommandQueue(); break;
 		}
@@ -143,21 +143,21 @@ int CloseHwManager(void){
 // Entrée: Numéro de l'encodeur
 // Sortie:
 // ------------------------------------------------------------------------------------
-int getMotorPulses(unsigned char motorNb){
+int getMotorPulses(unsigned char motorName){
 	int pulses;
 
-	switch(motorNb){
-		case 0: pulses = buggySensor.left_motor.pulseFromStartup; break;
-		case 1: pulses = buggySensor.right_motor.pulseFromStartup; break;
+	switch(motorName){
+		case MOTOR_LEFT: pulses = buggySensor.left_encoder.pulseFromStartup; break;
+		case MOTOR_RIGHT: pulses = buggySensor.right_encoder.pulseFromStartup; break;
 		default: pulses= -1; break;
 	}
 	return pulses;
 }
 
-char getDigitalInput(unsigned char inputNb){
+char getDigitalInput(unsigned char inputNumber){
 	char inputState;
 
-	switch(inputNb){
+	switch(inputNumber){
 		case 0: inputState = buggySensor.din0; break;
 		case 1: inputState = buggySensor.din1; break;
 		default: inputState=-1; break;
@@ -169,8 +169,8 @@ int getMotorFrequency(unsigned char motorNb){
 	char freq;
 
 	switch(motorNb){
-		case 0: freq = buggySensor.left_motor.frequency; break;
-		case 1: freq = buggySensor.right_motor.frequency; break;
+		case 0: freq = buggySensor.left_encoder.frequency; break;
+		case 1: freq = buggySensor.right_encoder.frequency; break;
 		default: freq=-1; break;
 	}
 	return freq;
@@ -200,11 +200,14 @@ int setMotorDirection(int motorName, int direction){
 	unsigned char motorAdress;
 
 	// Conversion No de moteur en adresse du registre du PWM controleur
+	motorAdress=getOrganI2Cregister(motorName);
+	/*
 	switch(motorName){
 		case MOTOR_LEFT: 	motorAdress = DCM0;	break;
 		case MOTOR_RIGHT :  motorAdress = DCM1;	break;
 		default : return(0);
 	}
+	 */
 
 	switch(direction){
 		case BUGGY_FORWARD :	set_i2c_command_queue(&MCP2308_DCmotorSetRotation, motorAdress, MCW); break;
@@ -278,6 +281,9 @@ unsigned char getMotorPower(unsigned char motorNr){
 // -------------------------------------------------------------------
 void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPercent){
 
+	unsigned char motorSlot;
+	motorSlot = getOrganNumber(motorNo);
+
 	// Récupération de la valeur absolue de l'acceleration
 	if(accelPercent<0) accelPercent*=-1;
 	// Défini un maximum de 100% d'acceleration
@@ -292,19 +298,21 @@ void setMotorAccelDecel(unsigned char motorNo, char accelPercent, char decelPerc
 
 	// Ne modifie les valeurs d'acceleration et deceleration uniquement si "valable" (=>0)
 	if(accelPercent>0)
-		motorDCaccelValue[motorNo] = accelPercent;
+		motorDCaccelValue[motorSlot] = accelPercent;
 	if(decelPercent>0)
-		motorDCdecelValue[motorNo] = decelPercent;
+		motorDCdecelValue[motorSlot] = decelPercent;
 }
 
 
 // ---------------------------------------------------------------------------
 // SETMOTORSPEED
 // Applique la consigne de vélocité pour un moteur donné
-// Cette consigne n'est pas applique directement mais sera progressivement
-// atteinte par le gestionnaire d'acceleration
+// Cette consigne n'est pas appliquée directement sur les moteur mais sera progressivement
+// approchée par le gestionnaire d'acceleration.
 // ---------------------------------------------------------------------------
 int setMotorSpeed(int motorName, int ratio){
+	char motorSlot;
+	motorSlot = getOrganNumber(motorName);
 
 	// Vérification ratio max et min comprise entre 0..100%
 	if(ratio > 100)
@@ -312,11 +320,10 @@ int setMotorSpeed(int motorName, int ratio){
 	if (ratio<0)
 		ratio = 0;
 
-	switch(motorName){
-		case MOTOR_LEFT : motorDCtargetPower[0]=ratio; break;
-		case MOTOR_RIGHT : motorDCtargetPower[1]=ratio; break;
-		default : printf("\n function [setMotorSpeed] : undefine motor #%d", motorName); break;
-	}
+	if(motorSlot >= 0)
+		motorDCtargetPower[motorSlot]=ratio;
+	else
+		printf("\n function [setMotorSpeed] : undefine motor #%d", motorName);
 
 	return(1);
 }
@@ -347,12 +354,15 @@ int set_i2c_command_queue(int (*callback)(char, int),char adr, int cmd){
 void setServoPosition(unsigned char smName, unsigned char angle){
 	char smAddr;
 
+	smAddr=getOrganI2Cregister(smName);
+/*
 	switch(smName){
 		case SERVO_0 : smAddr=SRM0; break;
 		case SERVO_1 : smAddr=SRM1; break;
 		case SERVO_2 : smAddr=SRM2; break;
 		default: break;
 	}
+*/
 	set_i2c_command_queue(&PCA9685_setServoPos, smAddr, angle);
 }
 
@@ -385,3 +395,46 @@ void processCommandQueue(void){
 	i2c_command_queuing[49][CALLBACK]=i2c_command_queuing[49][ADR]=i2c_command_queuing[49][CMD]=0;
 }
 
+// ------------------------------------------------------------------------------------
+// getMotorNumber: Fcontion appelee en fin de timer
+// Retourne le numéro du moteur 0..xx selon le nom d'organe spécifié
+// ------------------------------------------------------------------------------------
+char getOrganNumber(int organName){
+	char organNumber;
+
+	switch(organName){
+		case MOTOR_LEFT : organNumber = 0; break;
+		case MOTOR_RIGHT : organNumber = 1; break;
+		case MOTOR_ENCODER_LEFT : organNumber = 0; break;
+		case MOTOR_ENCODER_RIGHT : organNumber = 1; break;
+		case SERVO_0 : organNumber = 0; break;
+		case SERVO_1 : organNumber = 1; break;
+		case SERVO_2 : organNumber = 2; break;
+		case LED_0 : organNumber = 0; break;
+		case LED_1 : organNumber = 1; break;
+		case LED_2 : organNumber = 1; break;
+		default :	organNumber = -1; break;
+	}
+	return organNumber;
+}
+
+// ------------------------------------------------------------------------------------
+// getOrganAdress: Conversion du non d'organe en adresse I2C
+// Retourne l'adresse du registre correspondant au nom de l'organe
+// ------------------------------------------------------------------------------------
+unsigned char getOrganI2Cregister(unsigned char organName){
+	unsigned char organAdr;
+
+	switch(organName){
+		case MOTOR_LEFT : organAdr = PCA_DCM0; break;
+		case MOTOR_RIGHT : organAdr = PCA_DCM1; break;
+		case SERVO_0 : organAdr = PCA_SRM0; break;
+		case SERVO_1 : organAdr = PCA_SRM1; break;
+		case SERVO_2 : organAdr = PCA_SRM2; break;
+		case LED_0 : organAdr =   PCA_LED0; break;
+		case LED_1 : organAdr =   PCA_LED1; break;
+		case LED_2 : organAdr =   PCA_LED2; break;
+		default :	organAdr = UNKNOWN; break;
+	}
+	return organAdr;
+}

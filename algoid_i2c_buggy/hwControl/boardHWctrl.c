@@ -14,7 +14,7 @@ int EFM8BB_readFrequency(unsigned char wheelNb);			// Get the wheel frequency
 int EFM8BB_readPulseCounter(unsigned char wheelNb);
 int EFM8BB_clearWheelDistance(unsigned char wheelNb);
 
-unsigned char motorDCadr[2]={DCM0, DCM1};			// Valeur de la puissance moteur
+unsigned char motorDCadr[2]={PCA_DCM0, PCA_DCM1};			// Valeur de la puissance moteur
 
 //================================================================================
 // BUGGYBOARDINIT
@@ -93,7 +93,7 @@ void MCP2308_DCmotorSetRotation(unsigned char motorAdr, unsigned char direction)
 	MCP2308_GPIO_STATE=i2cReadByte(0x09);	// Récupération de l'état actuel des sortie sur le chip pour ne modifier que
 											// le bit nénéssaire
 	//	SELECTION DU MOTEUR No 0
-	if(motorAdr==DCM0){
+	if(motorAdr==PCA_DCM0){
 		// Désactive la commande du moteur
 		// avant de changer de sens de rotation
 		MCP2308_GPIO_STATE &= 0xF9;
@@ -111,7 +111,7 @@ void MCP2308_DCmotorSetRotation(unsigned char motorAdr, unsigned char direction)
 	}
 
 //	SELECTION DU MOTEUR No 1
-	if(motorAdr==DCM1){
+	if(motorAdr==PCA_DCM1){
 
 		// Désactive la commande du moteur
 		// avant de changer de sens de rotation

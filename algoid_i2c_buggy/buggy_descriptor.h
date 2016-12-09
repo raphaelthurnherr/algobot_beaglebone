@@ -19,7 +19,9 @@ typedef enum organ{
 	SERVO_2,
 	LED_0,
 	LED_1,
-	LED_2
+	LED_2,
+	DIN_0,
+	DIN_1
 }t_organ;
 
 #define BUGGY_STOP 		0

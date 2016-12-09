@@ -194,7 +194,7 @@ void ackToJSON(char * buffer, int msgId, char* to, char* from, char* msgType, ch
 					jwArr_object();
 						switch(valStr){
 						case DISTANCE :	jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);				// add object key:value pairs
-										jwObj_int("cm", round((AlgoidResponse[i].value)/10));				// add object key:value pairs
+										jwObj_int("cm", round((AlgoidResponse[i].value)));					// add object key:value pairs
 										jwObj_int("angle", AlgoidResponse[i].DISTresponse.angle);				// add object key:value pairs
 										jwObj_string("event", AlgoidResponse[i].DISTresponse.event_state);				// add object key:value pairs
 										jwObj_int("event_lower", AlgoidResponse[i].DISTresponse.event_low);				// add object key:value pairs
