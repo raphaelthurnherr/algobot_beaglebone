@@ -12,8 +12,8 @@
 #include "pthread.h"
 #include <unistd.h>
 #include "hwManager.h"
-#include "hwControl/boardHWctrl.h"
-#include "buggy_descriptor.h"
+#include "boardHWctrl.h"
+#include "../buggy_descriptor.h"
 
 // Thread Messager
 pthread_t th_hwManager;

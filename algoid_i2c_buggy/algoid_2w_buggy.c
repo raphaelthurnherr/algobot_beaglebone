@@ -15,11 +15,10 @@
 #include "algoidCom/messagesManager.h"
 #include "algoidCom/linux_json.h"
 #include "algoidCom/udpPublish.h"
-//#include "hwControl/boardHWctrl.h"
 #include "tools.h"
 #include "algoid_2wd_buggy.h"
 #include "timerManager.h"
-#include "hwManager.h"
+#include "hwControl/hwManager.h"
 
 int ActionTable[10][3];
 
@@ -57,23 +56,6 @@ unsigned int BATT_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
 unsigned char DIN_EVENT_ENABLE[5]={0,0,0,0,0};
 unsigned char DIN_HAS_CHANGE[5]={0,0,0,0,0};
 //// -----------------------------------------FIN REMPLACEMENT
-/*
-struct o_wheel{
-	int pulseFromStartup;
-	int frequency;
-};
-
-typedef struct tsensors{
-	unsigned char din0;
-	unsigned char din1;
-	int usonic;
-	int battery;
-	struct o_wheel left_encoder;
-	struct o_wheel right_encoder;
-}t_sensor;
-
-t_sensor buggy;
-*/
 
 
 // Traitement du message algoid recu
