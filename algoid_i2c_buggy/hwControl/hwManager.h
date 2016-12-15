@@ -23,8 +23,8 @@ extern int setMotorDirection(int motorName, int direction);
 extern void checkDCmotorPower(void);				// Fonction temporaire pour rampe d'acceleration
 extern unsigned char getMotorPower(unsigned char motorNr);			// Get the actual power of selected motor
 extern void setServoPosition(unsigned char smName, unsigned char angle);
-extern void setLedPower(unsigned char smAddr, unsigned char power);
-extern char getOrganNumber(int organName);		// Retourne le numéro du moteur 0..xx selon le nom d'organe spécifié
+extern void setLedPower(unsigned char ledID, unsigned char power);
+//extern char getOrganNumber(int organName);		// Retourne le numéro du moteur 0..xx selon le nom d'organe spécifié
 
 int set_i2c_command_queue(int (*callback)(char, int),char adr, int cmd);		//
 #endif /* HWMANAGER_H_ */
