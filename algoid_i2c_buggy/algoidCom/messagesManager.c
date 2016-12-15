@@ -68,22 +68,22 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 	    	printf("Nouveau message MQTT recu -> ");
 	    	//printf("[DEBUG] message: %s", MqttDataBuffer);
 	    	// RECEPTION DES DONNES UTILES
-			if(GetAlgoidMsg(AlgoidMessageRX, MqttDataBuffer)>0){
-				// Enregistrement du message dans la pile
-				lastMessage=pushMsgStack();
-				if(lastMessage>=0){
-					sendResponse(AlgoidMessageRX.msgID, ACK, AlgoidMessageRX.msgParam, 0);
-					printf("Mis en file d'attente\n");
-				}
-				else{
-					printf("ERREUR: File d'attente pleine !\n");
-				}
-			}else{
+				if(GetAlgoidMsg(AlgoidMessageRX, MqttDataBuffer)>0){
+					// Enregistrement du message dans la pile
+					lastMessage=pushMsgStack();
+					if(lastMessage>=0){
+						sendResponse(AlgoidMessageRX.msgID, ACK, AlgoidMessageRX.msgParam, 0);
+						printf("Mis en file d'attente\n");
+					}
+					else{
+						printf("ERREUR: File d'attente pleine !\n");
+					}
+				}else{
 
-				sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgType, AlgoidMessageRX.msgParam, 0);
-				printf("\n! MESSAGE ALGOID INCORRECT RECU !\n");
-				sendMqttReport(-1, "! MESSAGE ALGOID INCORRECT RECU !");
-			}
+					sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgType, AlgoidMessageRX.msgParam, 0);
+					printf("\n! MESSAGE ALGOID INCORRECT RECU !\n");
+					sendMqttReport(-1, "! MESSAGE ALGOID INCORRECT RECU !");
+				}
 			mqttDataReady=0;
 	    	}
 
@@ -170,7 +170,8 @@ int pullMsgStack(unsigned char ptrStack){
 			}
 
 			return 1;
-		}else return 0;
+		}else
+			return 0;
 }
 // ----------------------
 

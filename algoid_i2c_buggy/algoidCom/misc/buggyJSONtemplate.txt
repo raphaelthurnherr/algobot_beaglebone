@@ -12,22 +12,7 @@
 	}
 }
 
-//------------ 
-{
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
-	"MsgData" : {
-		"MsgType" : "command", 
-		"MsgParam" : "safety",
-	        "MsgValue": [
-           	 {"din": 0, "stop":"on", "event" : "on"},
-           	 {"din": 1, "stop":"on", "event" : "off"},
-           	 {"sonar": 0, "stop":"on", "event_lower" : 15},
-           	 {"battery": 0, "stop":"on", "event_lower" : "7000"}
-        ]
-	}
-}
+
 
 //------------ 
 
@@ -55,13 +40,24 @@
 }
 //---------------------------------------
 {
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
-	"MsgData" : {
-		"MsgType" : "request", 
-		"MsgParam" : "battery"
-	}
+    "MsgTo": "algoid",
+    "MsgFrom": "BUGGY_deadbeef0000",
+    "MsgID": 9127271,
+    "MsgData": {
+        "MsgType": "request",
+        "MsgParam": "battery",
+        "MsgValue": [
+            {
+                "battery": 0,
+                "mV": 15946,
+                "event": "off",
+                "event_lower": 0,
+                "event_higher": 65535,
+                "safety_stop": "off",
+                "safety_value": 0
+            }
+        ]
+    }
 }
 
 {
@@ -72,31 +68,31 @@
 		"MsgType" : "request", 
 		"MsgParam" : "din",
 	        "MsgValue": [
-           	 {"din": 1, "event":"on"},
-           	 {"din": 0, "event":"off"}
+           	 {"din": 1, "event":"on", "safety_stop" : "on", "safety_value" : 1},
+			 {"din": 0, "event":"off", "safety_stop" : "off", "safety_value" : 0},
         ]
 	}
 }
 
 {
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
-	"MsgData" : {
-		"MsgType" : "request", 
-		"MsgParam" : "distance",
-	        "MsgValue": [ 
-			{
-			"sonar": "0",
-			"angle" : 56,
-			"event": "on",
-			"event_lower": 20,
-			"event_higher": 180
-			}
-        	]
-	}
+    "MsgTo": "algoid",
+    "MsgFrom": "BUGGY_deadbeef0000",
+    "MsgID": 9127271,
+    "MsgData": {
+        "MsgType": "request",
+        "MsgParam": "distance",
+        "MsgValue": [
+            {
+                "sonar": 0,
+                "event": "off",
+                "event_lower": 20,
+                "event_higher": 60,
+                "safety_stop": "off",
+                "safety_value": 30
+            }
+        ]
+    }
 }
-
 
 {
 	"MsgID" : 0, 

@@ -20,8 +20,6 @@
 #include "timerManager.h"
 #include "hwControl/hwManager.h"
 
-int ActionTable[10][3];
-
 unsigned char ptrSpeedCalc;
 int createBuggyTask(int MsgId, int actionCount);
 int removeBuggyTask(int actionNumber);
@@ -30,31 +28,61 @@ void distanceEventCheck(void);
 void batteryEventCheck(void);
 void DINEventCheck(void);
 
+void DINSafetyCheck(void);
+void BatterySafetyCheck(void);
+void DistanceSafetyCheck(void);
+
 
 ////----------------------------------- A REMPLACER PAR STRUCT
+struct m_prox{
+	int state;
+	int event_enable;
+	int safetyStop_state;
+	int safetyStop_value;
+	int em_stop;
+};
+
+struct m_dist{
+	int value;
+	int event_enable;
+	int event_low;
+	int event_high;
+	int event_hysteresis;
+	int safetyStop_state;
+	int safetyStop_value;
+};
+
+struct m_voltage{
+	int value;
+	int event_enable;
+	int event_low;
+	int event_high;
+	int event_hysteresis;
+	int safetyStop_state;
+	int safetyStop_value;
+};
+
+struct m_counter{
+	float startEncoderValue;
+	float stopEncoderValue;
+};
+
+typedef struct tsensor{
+	struct m_prox proximity[2];
+	struct m_dist distance[1];
+	struct m_voltage battery[1];
+	struct m_counter encoder[2];
+}t_sensor;
+
+t_sensor body;
+
+int ActionTable[10][3];
+
 // Data sensors
-int distance[5], angle[5]={1,2,3,4,5};
 int speed[5], dist[5];
 
-int battery[5];
-int DIN[5]={11, 22, 33, 44, 55};
-
-float startEncoderValue[2];
-float stopEncoderValue[2];
-
-unsigned char distWarningSended;
-unsigned char DIST_EVENT_ENABLE[5] = {0,0,0,0,0};
-unsigned int DIST_EVENT_LOW[5]={0,0,0,0,0};
-unsigned int DIST_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
-
-unsigned char battWarningSended;
-unsigned char BATT_EVENT_ENABLE[5]={0,0,0,0,0};
-unsigned int BATT_EVENT_LOW[5]={0,0,0,0,0};
-unsigned int BATT_EVENT_HIGH[5]={65536, 65536, 65536, 65536, 65536};
 
 
-unsigned char DIN_EVENT_ENABLE[5]={0,0,0,0,0};
-unsigned char DIN_HAS_CHANGE[5]={0,0,0,0,0};
 //// -----------------------------------------FIN REMPLACEMENT
 
 
@@ -86,6 +114,7 @@ char reportBuffer[256];
 // -------------------------------------------------------------------
 
 int main(void) {
+	int i;
 
 	system("clear");
 // Création de la tâche pour la gestion de la messagerie avec ALGOID
@@ -128,6 +157,23 @@ int main(void) {
 
 	// ----------- DEBUT DE LA BOUCLE PRINCIPALE ----------
 
+	// Init body membre
+	for(i=0;i<NBAIN;i++){
+		body.battery[i].safetyStop_value=0;
+		body.battery[i].event_enable=0;
+		body.battery[i].event_high=65535;
+		body.battery[i].event_low=0;
+		body.battery[i].safetyStop_state=0;
+		body.battery[i].safetyStop_value=0;
+	}
+
+	for(i=0;i<NBDIN;i++){
+		body.proximity[i].em_stop=0;
+		body.proximity[i].event_enable=0;
+		body.proximity[i].safetyStop_state=0;
+		body.proximity[i].safetyStop_value=0;
+	}
+
 	while(1){
 
 		// Contrôle de la messagerie, recherche d'éventuels messages ALGOID et effectue les traitements nécéssaire
@@ -167,13 +213,20 @@ int main(void) {
     	// - Gestion des évenements batterie, digital inputs et distance
     	if(t100msFlag){
 
+
 			DINEventCheck();											// Contôle de l'état des entrées numérique
 																		// Génère un évenement si changement d'état détecté
-			distance[0] = getSonarDistance();
+
+			DINSafetyCheck();											// Contôle de l'état des entrées numérique
+			BatterySafetyCheck();
+			DistanceSafetyCheck(); 										// effectue une action si safety actif
+
+
+			body.distance[0].value = getSonarDistance();
 			distanceEventCheck();										// Provoque un évenement de type "distance" si la distance mesurée
 																		// est hors de la plage spécifiée par l'utilisateur
 
-			battery[0] = getBatteryVoltage();
+			body.battery[0].value = getBatteryVoltage();
 			batteryEventCheck();
 
 			dist[0]=getMotorPulses(MOTOR_LEFT);
@@ -181,13 +234,11 @@ int main(void) {
 
 			speed[0]=getMotorFrequency(0);
 			speed[1]=getMotorFrequency(1);
-			// est hors la plage spécifiée par les paramettre utilisateur
+			// est hors a plage spécifiée par les paramettre utilisateur
 
-
-			//printf("\n [main loop] Battery: %dmV   Sonar:%dcm",battery[0], distance[0]);
-
-			printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed[0]*0.285, speed[1]*0.285, dist[0]*0.285, dist[1]*0.285);
-			printf(" dist US: %d cm\n", distance[0]);
+			//printf("\nBattery: %d, safetyStop_state: %d safetyStop_value: %d", 0, body.battery[0].safetyStop_state, body.battery[0].safetyStop_value);
+			//printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed[0]*0.285, speed[1]*0.285, dist[0]*0.285, dist[1]*0.285);
+			//printf(" dist US: %d cm\n", distance[0]);
 
 			t100msFlag=0;												// Quittance le flag 100mS
     	}
@@ -374,9 +425,9 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 	// Valeur en retour >0 signifie que l'action "en retour" à été écrasée
 	switch(unit){
 		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelName); break;
-		case  CENTIMETER:   wheelNumber = getOrganNumber(wheelName);
-							startEncoderValue[wheelNumber]=getMotorPulses(wheelName)*0.285;
-							stopEncoderValue[wheelNumber] = startEncoderValue[wheelNumber]+ value;
+		case  CENTIMETER:   //wheelNumber = getOrganNumber(wheelName);
+							body.encoder[wheelName].startEncoderValue=getMotorPulses(wheelName)*0.285;
+							body.encoder[wheelName].stopEncoderValue = body.encoder[wheelName].startEncoderValue+ value;
 							//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", wheelNumber, distance, startEncoderValue[wheelNumber], stopEncoderValue[wheelNumber]);
 						    setTimerResult=setTimerWheel(50, &checkMotorEncoder, actionNumber, wheelName);			// Démarre un timer pour contrôle de distance chaque 35mS
 						    break;
@@ -451,9 +502,9 @@ int endWheelAction(int actionNumber, int wheelNumber){
 
 int checkMotorEncoder(int actionNumber, int encoderName){
 	float distance;					// Variable de distance parcourue depuis le start
-	unsigned char encoderNumber;
+	//unsigned char encoderNumber;
 
-	encoderNumber = getOrganNumber(encoderName);
+	//encoderNumber = getOrganNumber(encoderName);
 
 	distance = getMotorPulses(encoderName);
 
@@ -463,7 +514,7 @@ int checkMotorEncoder(int actionNumber, int encoderName){
 	}else  printf("\n ERROR: I2CBUS READ\n");
 	//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", encoderNumber, startEncoderValue[encoderNumber], stopEncoderValue[encoderNumber]);
 
-	if(distance >= stopEncoderValue[encoderNumber])
+	if(distance >= body.encoder[encoderName].stopEncoderValue)
 		endWheelAction(actionNumber, encoderName);
 	else
 		setTimerWheel(50, &checkMotorEncoder, actionNumber, encoderName);
@@ -520,6 +571,7 @@ int getServoSetting(int servoName){
 int createBuggyTask(int MsgId, int actionCount){
 	int i;
 	int actionID;
+
 
 	// défini un numéro de tache aléatoire pour l'action à executer si pas de message id saisi
 	if(MsgId == 0){
@@ -587,27 +639,36 @@ int makeSensorsRequest(void){
 
 	// Pas de paramètres spécifiés dans le message, retourne l'ensemble des états des DIN
 	if(AlgoidCommand.msgValueCnt==0){
-		AlgoidCommand.msgValueCnt=2;
-		for(i=0;i<2;i++){
+		AlgoidCommand.msgValueCnt=NBDIN;
+		for(i=0;i<NBDIN;i++){
 			AlgoidResponse[i].DINresponse.id=i;
-			AlgoidResponse[i].value=DIN[i];
+//			AlgoidResponse[i].value=body.proximity[i].state;
 		}
-
 	}else
-		// Retourne les états spécifiés dans le message des DIN
+		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 		for(i=0;i<AlgoidCommand.msgValueCnt; i++){
-			// Recherche de paramètres supplémentaires
+			AlgoidResponse[i].DINresponse.id = AlgoidCommand.DINsens[i].id;
 
-			if(!strcmp(AlgoidCommand.DINsens[i].event_state, "on"))	DIN_EVENT_ENABLE[AlgoidCommand.DINsens[i].id]=1; 			// Activation de l'envoie de messages sur évenements
-			else if(!strcmp(AlgoidCommand.DINsens[i].event_state, "off"))	DIN_EVENT_ENABLE[AlgoidCommand.DINsens[i].id]=0;    // Désactivation de l'envoie de messages sur évenements
-//			printf("DIN: %d, value: %d   modeAuto: %d\n", buffMsgValArray[i][0], buffMsgValArray[i][1], DIN_EVENT_ENABLE[AlgoidCommand.value[i]]);
+			// Recherche de paramètres supplémentaires et enregistrement des donnée en "local"
+			if(!strcmp(AlgoidCommand.DINsens[i].event_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=1; 			// Activation de l'envoie de messages sur évenements
+			else if(!strcmp(AlgoidCommand.DINsens[i].event_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=0;    // Désactivation de l'envoie de messages sur évenements
+
+			if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=1; 			// Activation de l'envoie de messages sur évenements
+			else if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=0;    // Désactivation de l'envoie de messages sur évenemen
+
+			body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_value = AlgoidCommand.DINsens[i].safetyStop_value;
 		};
 
+	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
-		AlgoidResponse[i].DINresponse.id=AlgoidCommand.DINsens[i].id;
-		AlgoidResponse[i].value=DIN[AlgoidCommand.DINsens[i].id];
-		if(DIN_EVENT_ENABLE[i])strcpy(AlgoidResponse[i].DINresponse.event_state, "on");
-				else strcpy(AlgoidResponse[i].DINresponse.event_state, "off");
+		int temp = AlgoidResponse[i].DINresponse.id;
+		AlgoidResponse[i].value = body.proximity[temp].state;
+		if(body.proximity[temp].event_enable) strcpy(AlgoidResponse[i].DINresponse.event_state, "on");
+			else strcpy(AlgoidResponse[i].DINresponse.event_state, "off");
+
+		if(body.proximity[temp].safetyStop_state) strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "on");
+			else strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "off");
+		AlgoidResponse[i].DINresponse.safetyStop_value = body.proximity[temp].safetyStop_value;
 	};
 
 	// Envoie de la réponse MQTT
@@ -626,32 +687,43 @@ int makeDistanceRequest(void){
 
 	// Pas de paramètres spécifié dans le message, retourne l'ensemble des distances
 	if(AlgoidCommand.msgValueCnt==0){
-		AlgoidCommand.msgValueCnt=1;
-		for(i=0;i<2;i++){
+		AlgoidCommand.msgValueCnt=NBPWM;
+		for(i=0;i<NBPWM;i++){
 			AlgoidResponse[i].DISTresponse.id=i;
-			AlgoidResponse[i].value=distance[i];
+//			AlgoidResponse[i].value=body.distance[i].value;
 		}
 	}else
-		// Recherche et enregistrement de paramètres supplémentaires si disponible
+		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.DISTsens[i].id;
 				// Activation de l'envoie de messages sur évenements
-				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=1;
-				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")) DIST_EVENT_ENABLE[AlgoidCommand.DISTsens[i].id]=0;
+				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")) body.distance[AlgoidCommand.DISTsens[i].id].event_enable=1;
+				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")) body.distance[AlgoidCommand.DISTsens[i].id].event_enable=0;
 				// Evemenent haut
-				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_high;
-				if(AlgoidCommand.DISTsens[i].event_high!=0) DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id]=AlgoidCommand.DISTsens[i].event_low;
+				if(AlgoidCommand.DISTsens[i].event_high!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_high=AlgoidCommand.DISTsens[i].event_high;
+				if(AlgoidCommand.DISTsens[i].event_low!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_low=AlgoidCommand.DISTsens[i].event_low;
+
+				if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "on")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=1;
+				else if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "off")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=0;
+				body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_value = AlgoidCommand.DISTsens[i].safetyStop_value;
 			};
 
+	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
-		// Récupération des paramètres actuels et chargement du buffer de reéponse
-		AlgoidResponse[i].DISTresponse.id=AlgoidCommand.DISTsens[i].id;
-		AlgoidResponse[i].value=distance[AlgoidCommand.DISTsens[i].id];
-		AlgoidResponse[i].DISTresponse.angle=angle[AlgoidCommand.DISTsens[i].id];
+		// Récupération des paramètres actuels et chargement du buffer de réponse
+		int temp = AlgoidResponse[i].DISTresponse.id;
 
-		if(DIST_EVENT_ENABLE[i])strcpy(AlgoidResponse[i].DISTresponse.event_state, "on");
+		AlgoidResponse[i].value=body.distance[temp].value;
+		//AlgoidResponse[i].DISTresponse.angle=angle[AlgoidCommand.DISTsens[i].angle];
+
+		if(body.distance[temp].event_enable)strcpy(AlgoidResponse[i].DISTresponse.event_state, "on");
 		else strcpy(AlgoidResponse[i].DISTresponse.event_state, "off");
-		AlgoidResponse[i].DISTresponse.event_high=DIST_EVENT_HIGH[AlgoidCommand.DISTsens[i].id];
-		AlgoidResponse[i].DISTresponse.event_low=DIST_EVENT_LOW[AlgoidCommand.DISTsens[i].id];
+		AlgoidResponse[i].DISTresponse.event_high=body.distance[temp].event_high;
+		AlgoidResponse[i].DISTresponse.event_low=body.distance[temp].event_low;
+
+		if(body.distance[temp].safetyStop_state)strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "on");
+		else strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "off");
+		AlgoidResponse[i].DISTresponse.safetyStop_value=body.distance[temp].safetyStop_value;
 	};
 
 	// Envoie de la réponse MQTT
@@ -676,26 +748,39 @@ int makeBatteryRequest(void){
 		AlgoidCommand.msgValueCnt=1;
 		for(i=0;i<2;i++){
 			AlgoidResponse[i].BATTesponse.id=i;
-			AlgoidResponse[i].value=battery[i];
+//			AlgoidResponse[i].value=body.battery[i].value;
 		}
 	}else
+		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.BATTsens[i].id;
 				// Recherche de paramètres supplémentaires
 				// Evenement activées
-				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")) BATT_EVENT_ENABLE[AlgoidCommand.BATTsens[i].id]=1;
-				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")) BATT_EVENT_ENABLE[AlgoidCommand.BATTsens[i].id]=0;
+				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")) body.battery[AlgoidCommand.BATTsens[i].id].event_enable=1;
+				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")) body.battery[AlgoidCommand.BATTsens[i].id].event_enable=0;
 				// Evemenent haut
-				if(AlgoidCommand.BATTsens[i].event_high!=0) BATT_EVENT_HIGH[AlgoidCommand.BATTsens[i].id]=AlgoidCommand.BATTsens[i].event_high;
-				if(AlgoidCommand.BATTsens[i].event_high!=0) BATT_EVENT_LOW[AlgoidCommand.BATTsens[i].id]=AlgoidCommand.BATTsens[i].event_low;
+				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_high=AlgoidCommand.BATTsens[i].event_high;
+				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_low=AlgoidCommand.BATTsens[i].event_low;
+
+				if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "on")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=1;
+				else if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "off")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=0;
+				if(AlgoidCommand.BATTsens[i].safetyStop_value!=0) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_value=AlgoidCommand.BATTsens[i].safetyStop_value;
 			};
 
+	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
-		AlgoidResponse[i].BATTesponse.id=AlgoidCommand.BATTsens[i].id;
-		AlgoidResponse[i].value=battery[AlgoidCommand.BATTsens[i].id];
-		if(BATT_EVENT_ENABLE[i])strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
+		int temp = AlgoidResponse[i].BATTesponse.id;
+
+		AlgoidResponse[i].value=body.battery[temp].value;
+
+		if(body.battery[temp].event_enable)strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
 		else strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
-		AlgoidResponse[i].BATTesponse.event_high=BATT_EVENT_HIGH[AlgoidCommand.BATTsens[i].id];
-		AlgoidResponse[i].BATTesponse.event_low=BATT_EVENT_LOW[AlgoidCommand.BATTsens[i].id];
+		AlgoidResponse[i].BATTesponse.event_high=body.battery[temp].event_high;
+		AlgoidResponse[i].BATTesponse.event_low=body.battery[temp].event_low;
+
+		if(body.battery[temp].safetyStop_state)strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "on");
+		else strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "off");
+		AlgoidResponse[i].BATTesponse.safetyStop_value=body.battery[temp].safetyStop_value;
 	};
 
 	// Envoie de la réponse MQTT
@@ -711,24 +796,25 @@ int makeBatteryRequest(void){
 // plage définie.
 // -------------------------------------------------------------------
 void distanceEventCheck(void){
+	static unsigned char distWarningSended[1];
 	unsigned char i;
 	// Contrôle periodique des mesures de distances pour envoie d'evenement
 	for(i=0;i<2;i++){
 		// Vérification si envoie des EVENT activés
-		if(DIST_EVENT_ENABLE[i]){
-			if((distance[i]<DIST_EVENT_LOW[i]) || (distance[i]>DIST_EVENT_HIGH[i])){		// Mesure de distance hors plage
-				if(distWarningSended==0){													// N'envoie l' event qu'une seule fois
+		if(body.distance[i].event_enable){
+			if((body.distance[i].value < body.distance[i].event_low) || (body.distance[i].value > body.distance[i].event_high)){		// Mesure de distance hors plage
+				if(distWarningSended[i]==0){													// N'envoie l' event qu'une seule fois
 					AlgoidResponse[i].DISTresponse.id=i;
-					AlgoidResponse[i].value=distance[i];
+					AlgoidResponse[i].value=body.distance[i].value;
 					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
-					distWarningSended=1;
+					distWarningSended[i]=1;
 				}
 			}
-			else if (distWarningSended==1){													// Mesure de distance revenu dans la plage
+			else if (distWarningSended[i]==1){													// Mesure de distance revenu dans la plage
 					AlgoidResponse[i].DISTresponse.id=i;									// Et n'envoie qu'une seule fois le message
-					AlgoidResponse[i].value=distance[i];
+					AlgoidResponse[i].value=body.distance[i].value;
 					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
-					distWarningSended=0;
+					distWarningSended[i]=0;
 			}
 		}
 	}
@@ -744,24 +830,25 @@ void distanceEventCheck(void){
 // -------------------------------------------------------------------
 // -------------------------------------------------------------------
 void batteryEventCheck(void){
+	static unsigned char battWarningSended[1];
 	unsigned char i;
 	// Contrôle periodique des mesures de tension batterie pour envoie d'evenement
-	for(i=0;i<2;i++){
-		if(BATT_EVENT_ENABLE[i]){
-			if((battery[i]<BATT_EVENT_LOW[i]) || (battery[i]>BATT_EVENT_HIGH[i])){				// Mesure tension hors plage
-				if(battWarningSended==0){														// N'envoie qu'une seule fois l'EVENT
+	for(i=0;i<NBAIN;i++){
+		if(body.battery[i].event_enable){
+			if((body.battery[i].value < body.battery[i].event_low) || (body.battery[i].value > body.battery[i].event_high)){				// Mesure tension hors plage
+				if(battWarningSended[i]==0){														// N'envoie qu'une seule fois l'EVENT
 					AlgoidResponse[i].BATTesponse.id=i;
-					AlgoidResponse[i].value=battery[i];
+					AlgoidResponse[i].value=body.battery[i].value;
 					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
-					battWarningSended=1;
+					battWarningSended[i]=1;
 				}
 			}
 			// Envoie un évenement Fin de niveau bas (+50mV Hysterese)
-			else if (battWarningSended==1 && battery[i]>(BATT_EVENT_LOW[i]+50)){				// Mesure tension dans la plage
+			else if (battWarningSended[i]==1 && body.battery[i].value > (body.battery[i].event_low + body.battery[i].event_hysteresis)){				// Mesure tension dans la plage
 					AlgoidResponse[i].BATTesponse.id=i;											// n'envoie qu'une seule fois après
-					AlgoidResponse[i].value=battery[i];											// une hysterese de 50mV
+					AlgoidResponse[i].value=body.battery[i].value;											// une hysterese de 50mV
 					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
-					battWarningSended=0;
+					battWarningSended[i]=0;
 			}
 		}
 	}
@@ -776,20 +863,20 @@ void batteryEventCheck(void){
 // -------------------------------------------------------------------
 void DINEventCheck(void){
 	// Mise à jour de l'état des E/S
-	unsigned char ptrBuff=0, DINevent=0, oldDinValue, i;
+	unsigned char ptrBuff=0, DINevent=0, oldDinValue[NBDIN], i;
 
-	for(i=0;i<2;i++){
+	for(i=0;i<NBDIN;i++){
 		// Mise à jour de l'état des E/S
-		oldDinValue=DIN[i];
-		DIN[i] = getDigitalInput(i);
+		oldDinValue[i]=body.proximity[i].state;
+		body.proximity[i].state = getDigitalInput(i);
 
 		// Vérifie si un changement a eu lieu sur les entrees et transmet un message
 		// "event" listant les modifications
-		if(DIN_EVENT_ENABLE[i] && (oldDinValue!=DIN[i])){
+		if(body.proximity[i].event_enable && (oldDinValue[i] != body.proximity[i].state)){
 			AlgoidResponse[ptrBuff].DINresponse.id=i;
-			AlgoidResponse[ptrBuff].value=DIN[i];
+			AlgoidResponse[ptrBuff].value=body.proximity[i].state;
 			ptrBuff++;
-			printf("CHANGEMENT DIN%d, ETAT:%d\n", i, DIN[i]);
+			printf("CHANGEMENT DIN%d, ETAT:%d\n", i, body.proximity[i].state);
 			DINevent++;
 		}
 	}
@@ -798,4 +885,103 @@ void DINEventCheck(void){
 		sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINevent);
 }
 
+
+// -------------------------------------------------------------------
+// DINSAFETYCHECK
+// Vérifie si une changement d'état à eu lieu sur les entrées numériques
+// et effectue une action si safety actif et valeur concordante
+// -------------------------------------------------------------------
+void DINSafetyCheck(void){
+	// Mise à jour de l'état des E/S
+	unsigned char ptrBuff=0, DINsafety=0, i;
+	static unsigned char safetyAction[NBDIN];
+
+	for(i=0;i<NBDIN;i++){
+		// Mise à jour de l'état des E/S
+		body.proximity[i].state = getDigitalInput(i);
+
+		// Vérifie si un changement a eu lieu sur les entrees et transmet un message
+		// "event" listant les modifications
+		if(body.proximity[i].safetyStop_state){
+			if((body.proximity[i].safetyStop_value == body.proximity[i].state)){
+				if(!safetyAction[i]){
+					ptrBuff++;
+					printf("SAFETY DETECTION ON DIN%d, ETAT:%d\n", i, body.proximity[i].state);
+					DINsafety++;
+					safetyAction[i]=1;
+				}
+			} else safetyAction[i]=0;
+		}
+	}
+	if(DINsafety>0){
+		// ACTION A EFFECTUER
+		//sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINsafety);
+	}
+}
+
+// -------------------------------------------------------------------
+// BATTERYSAFETYCHECK
+// Vérifie si une changement d'état à eu lieu sur les entrées numériques
+// et effectue une action si safety actif et valeur concordante
+// -------------------------------------------------------------------
+void BatterySafetyCheck(void){
+	// Mise à jour de l'état des E/S
+	unsigned char ptrBuff=0, AINsafety=0, i;
+	static unsigned char safetyAction[NBAIN];
+
+	for(i=0;i<NBAIN;i++){
+		// Mise à jour de l'état des E/S
+		body.battery[i].value = getBatteryVoltage();
+
+		// Vérifie si un changement a eu lieu sur les entrees et transmet un message
+		// "event" listant les modifications
+		if(body.battery[i].safetyStop_state){
+			if((body.battery[i].safetyStop_value > body.battery[i].value)){
+				if(!safetyAction[i]){
+					ptrBuff++;
+					printf("SAFETY DETECTION ON BATTERY%d, VALUE:%d\n", i, body.battery[i].value);
+					AINsafety++;
+					safetyAction[i]=1;
+				}
+			} else safetyAction[i]=0;
+		}
+	}
+	if(AINsafety>0){
+		// ACTION A EFFECTUER
+		//sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINsafety);
+	}
+}
+
+// -------------------------------------------------------------------
+// DISTANCESAFETYCHECK
+// Vérifie si une changement d'état à eu lieu sur les entrées numériques
+// et effectue une action si safety actif et valeur concordante
+// -------------------------------------------------------------------
+void DistanceSafetyCheck(void){
+	// Mise à jour de l'état des E/S
+	unsigned char ptrBuff=0, DISTsafety=0, i;
+	static unsigned char safetyAction[NBPWM];
+
+	for(i=0;i<NBPWM;i++){
+		// Mise à jour de l'état des E/S
+		body.distance[i].value = getSonarDistance();
+
+		// Vérifie si un changement a eu lieu sur les entrees et transmet un message
+		// "event" listant les modifications
+		if(body.distance[i].safetyStop_state){
+			if((body.distance[i].safetyStop_value > body.distance[i].value)){
+				if(!safetyAction[i]){
+					ptrBuff++;
+					printf("SAFETY DETECTION ON SONAR %d, VALUE:%d\n", i, body.distance[i].value);
+					DISTsafety++;
+					safetyAction[i]=1;
+				}
+			} else safetyAction[i]=0;
+		}
+	}
+	if(DISTsafety>0){
+		// ACTION A EFFECTUER
+		//sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINsafety);
+	}
+}
 
