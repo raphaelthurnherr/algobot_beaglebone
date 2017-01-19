@@ -182,7 +182,7 @@ int main(void) {
 			switch(AlgoidCommand.msgType){
 				case COMMAND : processAlgoidCommand(); break;						// Traitement du message de type "COMMAND"
 				case REQUEST : processAlgoidRequest(); break;						// Traitement du message de type "REQUEST"
-				default : printf("\[main]->Commande non prise en charge..."); break;
+				default : ; break;
 			}
 		}
 
@@ -484,7 +484,7 @@ int endWheelAction(int actionNumber, int wheelNumber){
 
 	// Contrôle que toutes les actions ont été effectuée pour la commande recue dans le message ALGOID
 	if(endOfTask){
-		sendResponse(endOfTask, RESPONSE, LL_2WD, 0);
+		sendResponse(endOfTask, EVENT, LL_2WD, 0);
 		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
 		sendMqttReport(endOfTask, reportBuffer);
@@ -727,7 +727,7 @@ int makeDistanceRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, RESPONSE, DISTANCE, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, AlgoidCommand.msgValueCnt);
 
 		return 1;
 }
@@ -784,7 +784,7 @@ int makeBatteryRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, RESPONSE, BATTERY, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, AlgoidCommand.msgValueCnt);
 		return 1;
 }
 

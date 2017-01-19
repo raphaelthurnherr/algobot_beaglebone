@@ -50,7 +50,7 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 
 	if(!mqttStatus){
 		printf("# Connection au broker MQTT IP: %s avec ID: %s\n",ADDRESS,ClientID   );
-		if(!mqttAddRXChannel("MONTEST")){
+		if(!mqttAddRXChannel(TOPIC_COMMAND)){
 			printf("# Inscription au topic: OK\n");
 		}
 		else {
@@ -262,15 +262,15 @@ int mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_mess
 void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt){
 	char MQTTbuf[1024];
 	char ackType[15], ackParam[15];
+	char topic[50];
 
-
-	// Génération du texte de reponse TYPE pour message MQTT
+	// Génération du texte de reponse TYPE pour message MQTT et selection du topic de destination
 	switch(msgType){
-		case COMMAND : strcpy(ackType, "command"); break;
-		case REQUEST : strcpy(ackType, "request"); break;
-		case ACK : strcpy(ackType, "ack"); break;
-		case RESPONSE : strcpy(ackType, "response"); break;
-		case EVENT : strcpy(ackType, "event"); break;
+		case COMMAND : strcpy(ackType, "command"); strcpy(topic, TOPIC_COMMAND); break;			// Commande vers l'hôte ****** NON UTILISE **********
+		case REQUEST : strcpy(ackType, "request"); strcpy(topic, TOPIC_COMMAND); break;			// Requête vers l'hôte ****** NON UTILISE **********
+		case ACK : strcpy(ackType, "ack");  strcpy(topic, TOPIC_RESPONSE); break;				// Ack vers l'hôte
+		case RESPONSE : strcpy(ackType, "response"); strcpy(topic, TOPIC_RESPONSE); break;		// Reponse vers l'hôte
+		case EVENT : strcpy(ackType, "event"); strcpy(topic, TOPIC_EVENT); break;				// Reponse vers l'hôtebreak;
 		case NEGOC : strcpy(ackType, "negoc"); break;
 		case ERR_TYPE : strcpy(ackType, "error"); break;
 		case WARNING : strcpy(ackType, "warning"); break;
@@ -290,8 +290,10 @@ void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsi
 		default : strcpy(ackParam, "unknown"); break;
 	}
 
+
 	ackToJSON(MQTTbuf, msgId, "algoid", ClientID, ackType, ackParam, msgParam, valCnt);
-	mqttPutMessage("MONRET", MQTTbuf, strlen(MQTTbuf));
+
+	mqttPutMessage(&topic, MQTTbuf, strlen(MQTTbuf));
 }
 
 // -------------------------------------------------------------------

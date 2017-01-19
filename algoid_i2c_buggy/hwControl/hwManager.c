@@ -81,7 +81,7 @@ void *hwTask (void * arg){
 	int i;
 
 	if(buggyBoardInit()){
-		printf("# Initialisation carte HW: OK\n");
+		printf("\n# Initialisation carte HW: OK\n");
 		sendMqttReport(0,"# Initialisation carte HW: OK\n");
 		setLedPower(LED_0,100);
 	}

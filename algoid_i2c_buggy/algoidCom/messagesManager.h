@@ -10,6 +10,12 @@
 
 extern char ClientID[50];
 
+// Définition des topic de réponses MQTT
+#define TOPIC_COMMAND "Command"					// Topic d'écoute de l'hote
+#define TOPIC_RESPONSE "Response"					// Topic de réponse à l'hote
+#define TOPIC_EVENT "Event"						// Topic d'envoie des evenements à l'hote
+
+
 // Initialisation de la messagerie system (JSON<->MQTT)
 int InitMessager(void);
 int pullMsgStack(unsigned char ptrStack);

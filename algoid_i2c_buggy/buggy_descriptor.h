@@ -57,24 +57,6 @@ typedef enum o_led{
 	NBLED,
 }t_led;
 
-/*
-typedef enum organ{
-	UNKNOWN,
-	MOTOR_LEFT,
-	MOTOR_RIGHT,
-	MOTOR_ENCODER_LEFT,
-	MOTOR_ENCODER_RIGHT,
-	SERVO_0,
-	SERVO_1,
-	SERVO_2,
-	LED_0,
-	LED_1,
-	LED_2,
-	DIN_0,
-	DIN_1
-}t_organ;
-*/
-
 #define BUGGY_STOP 		0
 #define BUGGY_FORWARD 	1
 #define BUGGY_BACK 		2
