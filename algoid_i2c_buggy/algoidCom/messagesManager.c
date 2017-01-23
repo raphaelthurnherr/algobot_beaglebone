@@ -1,5 +1,5 @@
 
-//#define ADDRESS     "192.168.5.12:1883"
+//#define ADDRESS     "192.168.3.18:1883"
 #define ADDRESS     "localhost:1883"
 
 #include "stdio.h"
@@ -286,6 +286,7 @@ void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsi
 		case DINPUT : strcpy(ackParam, "din"); break;
 		case BATTERY : strcpy(ackParam, "battery"); break;
 		case DISTANCE : strcpy(ackParam, "distance"); break;
+		case pLED : strcpy(ackParam, "led"); break;
 		case ERR_PARAM : strcpy(ackParam, "error"); break;
 		default : strcpy(ackParam, "unknown"); break;
 	}

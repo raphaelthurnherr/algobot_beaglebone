@@ -378,14 +378,6 @@ void setServoPosition(unsigned char smName, unsigned char angle){
 	char smAddr;
 
 	smAddr=getOrganI2Cregister(SERVOM, smName);
-/*
-	switch(smName){
-		case SERVO_0 : smAddr=SRM0; break;
-		case SERVO_1 : smAddr=SRM1; break;
-		case SERVO_2 : smAddr=SRM2; break;
-		default: break;
-	}
-*/
 	set_i2c_command_queue(&PCA9685_setServoPos, smAddr, angle);
 }
 
@@ -420,30 +412,7 @@ void processCommandQueue(void){
 	i2c_command_queuing[49][CALLBACK]=i2c_command_queuing[49][ADR]=i2c_command_queuing[49][CMD]=0;
 }
 
-/*
-// ------------------------------------------------------------------------------------
-// getMotorNumber: Fcontion appelee en fin de timer
-// Retourne le numéro du moteur 0..xx selon le nom d'organe spécifié
-// ------------------------------------------------------------------------------------
-char getOrganNumber(int organName){
-	char organNumber;
 
-	switch(organName){
-		case MOTOR_LEFT : organNumber = 0; break;
-		case MOTOR_RIGHT : organNumber = 1; break;
-		case MOTOR_ENCODER_LEFT : organNumber = 0; break;
-		case MOTOR_ENCODER_RIGHT : organNumber = 1; break;
-		case SERVO_0 : organNumber = 0; break;
-		case SERVO_1 : organNumber = 1; break;
-		case SERVO_2 : organNumber = 2; break;
-		case LED_0 : organNumber = 0; break;
-		case LED_1 : organNumber = 1; break;
-		case LED_2 : organNumber = 1; break;
-		default :	organNumber = -1; break;
-	}
-	return organNumber;
-}
-*/
 // ------------------------------------------------------------------------------------
 // getOrganAdress: Conversion du non d'organe en adresse I2C
 // Retourne l'adresse du registre correspondant au nom de l'organe
@@ -476,18 +445,6 @@ unsigned char getOrganI2Cregister(char organType, unsigned char organName){
 			default :	organAdr = UNKNOWN; break;
 		}
 	}
-	/*
-	switch(organName){
-		case MOTOR_LEFT : organAdr = PCA_DCM0; break;
-		case MOTOR_RIGHT : organAdr = PCA_DCM1; break;
-		case SERVO_0 : organAdr = PCA_SRM0; break;
-		case SERVO_1 : organAdr = PCA_SRM1; break;
-		case SERVO_2 : organAdr = PCA_SRM2; break;
-		case LED_0 : organAdr =   PCA_LED0; break;
-		case LED_1 : organAdr =   PCA_LED1; break;
-		case LED_2 : organAdr =   PCA_LED2; break;
-		default :	organAdr = UNKNOWN; break;
-	}
-	*/
+
 	return organAdr;
 }

@@ -4,6 +4,21 @@
 	"MsgFrom" : "MQTTFX", 
 	"MsgData" : {
 		"MsgType" : "command", 
+		"MsgParam" : "led",
+	        "MsgValue": [
+           	 {"led": 1, "power":"20"},
+           	 {"led": 0, "angle":"50"},
+           	 {"led": 2, "angle":"80"}
+        ]
+	}
+}
+
+{
+	"MsgID" : 0, 
+	"MsgTo" : "Buggy", 
+	"MsgFrom" : "MQTTFX", 
+	"MsgData" : {
+		"MsgType" : "command", 
 		"MsgParam" : "servo",
 	        "MsgValue": [
            	 {"servo": 1, "angle":"0"},
@@ -11,7 +26,6 @@
         ]
 	}
 }
-
 
 
 //------------ 
@@ -106,3 +120,4 @@
         ]
 	}
 }
+

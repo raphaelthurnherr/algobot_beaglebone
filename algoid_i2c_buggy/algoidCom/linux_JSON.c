@@ -21,6 +21,9 @@
 #define KEY_MESSAGE_VALUE_ANGLE "{'MsgData'{'MsgValue'[*{'angle'"
 #define KEY_MESSAGE_VALUE_BATT "{'MsgData'{'MsgValue'[*{'battery'"
 #define KEY_MESSAGE_VALUE_SERVO "{'MsgData'{'MsgValue'[*{'servo'"
+#define KEY_MESSAGE_VALUE_LED "{'MsgData'{'MsgValue'[*{'led'"
+
+#define KEY_MESSAGE_VALUE_POWER "{'MsgData'{'MsgValue'[*{'power'"
 
 #define KEY_MESSAGE_VALUE_STATE "{'MsgData'{'MsgValue'[*{'state'"
 
@@ -100,11 +103,12 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 					if(!strcmp(myDataString, "move")) AlgoidMessageRX.msgParam = MOVE;
 					if(!strcmp(myDataString, "2wd")) AlgoidMessageRX.msgParam = LL_2WD;
 					if(!strcmp(myDataString, "servo")) AlgoidMessageRX.msgParam = SERVO;
+					if(!strcmp(myDataString, "led")) AlgoidMessageRX.msgParam = pLED;
 
 					if(!strcmp(myDataString, "distance")) AlgoidMessageRX.msgParam = DISTANCE;
 					if(!strcmp(myDataString, "battery")) AlgoidMessageRX.msgParam = BATTERY;
 					if(!strcmp(myDataString, "din")) AlgoidMessageRX.msgParam = DINPUT;
-					if(!strcmp(myDataString, "safety")) AlgoidMessageRX.msgParam = SAFETY;
+					if(!strcmp(myDataString, "sensors")) AlgoidMessageRX.msgParam = SENSORS;
 
 				  jRead((char *)srcBuffer, KEY_MESSAGE_VALUE, &element );
 
@@ -168,6 +172,19 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 				    		  }
 				    		  AlgoidMessageRX.SERVOmotor[i].angle= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_ANGLE, &i);
 				    	  }
+
+				    	  if(AlgoidMessageRX.msgParam == pLED){
+				    		  jRead_string((char *)srcBuffer, KEY_MESSAGE_VALUE_STATE, AlgoidMessageRX.LEDarray[i].state, 15, &i );
+				    		  int organId=jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_LED, &i);
+				    		  switch(organId){
+				    		  	  case 0 : AlgoidMessageRX.LEDarray[i].id=LED_0; break;
+				    		  	  case 1 : AlgoidMessageRX.LEDarray[i].id=LED_1; break;
+				    		  	  case 2 : AlgoidMessageRX.LEDarray[i].id=LED_2; break;
+				    		  	  default : AlgoidMessageRX.LEDarray[i].id=-1; break;
+				    		  }
+				    		  AlgoidMessageRX.LEDarray[i].powerPercent= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_POWER, &i);
+				    	  }
+
 				    }
 				  }
 				  else AlgoidMessageRX.msgValueCnt=0;
@@ -231,6 +248,7 @@ void ackToJSON(char * buffer, int msgId, char* to, char* from, char* msgType, ch
 										jwObj_string("safety_stop", AlgoidResponse[i].DINresponse.safetyStop_state);				// add object key:value pairs
 										jwObj_int("safety_value", AlgoidResponse[i].DINresponse.safetyStop_value);				// add object key:value pairs
 									   break;
+
 						default:  	   break;
 
 						}

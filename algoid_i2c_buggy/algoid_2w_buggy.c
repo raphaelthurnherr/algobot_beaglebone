@@ -96,6 +96,7 @@ int makeBatteryRequest(void);
 
 int make2WDaction(void);
 int makeServoAction(void);
+int makeLedAction(void);
 int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int value);
 int endWheelAction(int actionNumber, int wheelNumber);
 int checkMotorEncoder(int actionNumber, int encoderName);
@@ -265,6 +266,7 @@ int processAlgoidCommand(void){
 	switch(AlgoidCommand.msgParam){
 		case LL_2WD : 	make2WDaction(); break;			// Action avec en paramètre MOTEUR, VELOCITE, ACCELERATION, TEMPS d'action
 		case SERVO  : 	makeServoAction();break;
+		case pLED  : 	makeLedAction();break;
 		default : break;
 	}
 
@@ -377,13 +379,13 @@ int makeServoAction(void){
 		printf("Creation de tache SERVO: #%d avec %d actions\n", myTaskId, actionCount);
 
 		for(ptrData=0; action < actionCount && ptrData<10; ptrData++){
-			if(AlgoidCommand.SERVOmotor[ptrData].id>0){
+			if(AlgoidCommand.SERVOmotor[ptrData].id>=0){
 				setServoPosition(AlgoidCommand.SERVOmotor[ptrData].id, AlgoidCommand.SERVOmotor[ptrData].angle);
 
 				endOfTask=removeBuggyTask(myTaskId);
 				if(endOfTask>0){
 					sprintf(reportBuffer, "FIN DES ACTIONS \"SERVO\" pour la tache #%d\n", endOfTask);
-					sendResponse(endOfTask, EVENT, SERVO, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+					sendResponse(endOfTask, EVENT, SERVO, 0);				// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 					printf(reportBuffer);									// Affichage du message dans le shell
 					sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
 				}
@@ -395,6 +397,51 @@ int makeServoAction(void){
 	return 0;
 }
 
+
+// -------------------------------------------------------------------
+// makeLedAction
+//
+// -------------------------------------------------------------------
+int makeLedAction(void){
+	int ptrData;
+	int myTaskId;
+	int endOfTask;
+
+	unsigned char actionCount=0;
+	unsigned char action;
+
+	// Recherche s'il y a des paramètres pour chaque roue
+	// Des paramètres recu pour une roue crée une action à effectuer
+	if(getLedSetting(LED_0)>=0) actionCount++;
+	if(getLedSetting(LED_1)>=0) actionCount++;
+	if(getLedSetting(LED_2)>=0) actionCount++;
+
+	// Ouverture d'une tâche pour les toutes les actions du message algoid à effectuer
+	// Recois un numéro de tache en retour
+	myTaskId=createBuggyTask(AlgoidCommand.msgID, actionCount);			//
+
+	// Démarrage des actions
+	if(myTaskId>0){
+		printf("Creation de tache LED: #%d avec %d actions\n", myTaskId, actionCount);
+
+		for(ptrData=0; action < actionCount && ptrData<10; ptrData++){
+			if(AlgoidCommand.LEDarray[ptrData].id>=0){
+				setLedPower(AlgoidCommand.LEDarray[ptrData].id, AlgoidCommand.LEDarray[ptrData].powerPercent);
+
+				endOfTask=removeBuggyTask(myTaskId);
+				if(endOfTask>0){
+					sprintf(reportBuffer, "FIN DES ACTIONS \"LED\" pour la tache #%d\n", endOfTask);
+					sendResponse(endOfTask, EVENT, pLED, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+					printf(reportBuffer);									// Affichage du message dans le shell
+					sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
+				}
+
+				action++;
+			}
+		}
+	}
+	return 0;
+}
 
 
 // -------------------------------------------------------------------
@@ -409,7 +456,6 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 	int myDirection;
 	int setTimerResult;
 	int endOfTask;
-	unsigned char wheelNumber;
 
 	// Conversion de la vélocité de -100...+100 en direction AVANCE ou RECULE
 	if(veloc > 0)
@@ -450,7 +496,7 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 			setMotorSpeed(wheelName, veloc);									// Vitesse
 
 			// Envoie de message ALGOID et SHELL
-			sprintf(reportBuffer, "Start wheel %d with velocity %d for time %d\n",wheelNumber, veloc, value);
+			sprintf(reportBuffer, "Start wheel %d with velocity %d for time %d\n", wheelName, veloc, value);
 			printf(reportBuffer);
 			sendMqttReport(actionNumber, reportBuffer);
 		}
@@ -543,7 +589,7 @@ int getWDvalue(int wheelName){
 // -------------------------------------------------------------------
 // GETSERVOSETTING
 // Recherche dans le message algoid, les paramètres
-// [velocité, angle, etat] pour une servomoteur spécifié
+// pour une servomoteur spécifié
 // Retourne un pointeur sur le champs de paramètre correspondant au servomoteur spécifié
 // -------------------------------------------------------------------
 int getServoSetting(int servoName){
@@ -558,6 +604,23 @@ int getServoSetting(int servoName){
 	return searchPtr;
 }
 
+
+// -------------------------------------------------------------------
+// GETLEDSETTING
+// Recherche dans le message algoid, les paramètres
+// pour une servomoteur spécifié
+// -------------------------------------------------------------------
+int getLedSetting(int ledName){
+	int i;
+	int searchPtr = -1;
+
+	// Recherche dans les donnée recues la valeur correspondante au paramètre "wheelName"
+	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
+		if(ledName == AlgoidCommand.LEDarray[i].id)
+		searchPtr=i;
+	}
+	return searchPtr;
+}
 
 
 // -------------------------------------------------------------------

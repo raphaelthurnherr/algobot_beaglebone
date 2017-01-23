@@ -1,4 +1,4 @@
-#include "../../hwControl/libs/bbb_i2c.h"
+#include "bbb_i2c.h"
 
 #include <errno.h>
 #include <string.h>

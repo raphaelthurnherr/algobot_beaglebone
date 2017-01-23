@@ -20,7 +20,8 @@ typedef enum msgparam{
 	DISTANCE,
 	BATTERY,
 	SERVO,
-	SAFETY
+	pLED,
+	SENSORS
 }t_msgparam;
 
 
@@ -65,6 +66,13 @@ struct mServo{
 	int angle;
 };
 
+struct mLed{
+	int id;
+	char state[50];
+	int powerPercent;
+};
+
+
 // Structure d'un message algoid recu
 typedef struct JsonCommand{
 	char msgTo[32];
@@ -81,6 +89,7 @@ typedef struct JsonCommand{
 	struct mDistance DISTsens[20];
 	struct mBattery BATTsens[20];
 	struct mServo SERVOmotor[20];
+	struct mLed LEDarray[20];
 	// UNION ???
 
 }ALGOID;
