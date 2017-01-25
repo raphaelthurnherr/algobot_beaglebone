@@ -1,22 +1,32 @@
 {
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
+	"MsgID" : 88244, 
+	"MsgTo" : "buggy", 
+	"MsgFrom" : "Algo", 
+	"MsgData" : {
+		"MsgType" : "request", 
+		"MsgParam" : "status"
+	}
+}
+
+{
+	"MsgID" : 0956, 
+	"MsgTo" : "buggy", 
+	"MsgFrom" : "MQTTFX_LED", 
 	"MsgData" : {
 		"MsgType" : "command", 
 		"MsgParam" : "led",
 	        "MsgValue": [
            	 {"led": 1, "power":"20"},
-           	 {"led": 0, "angle":"50"},
-           	 {"led": 2, "angle":"80"}
+           	 {"led": 0, "power":"50"},
+           	 {"led": 2, "power":"80"}
         ]
 	}
 }
 
 {
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
+	"MsgID" : 3654, 
+	"MsgTo" : "buggy", 
+	"MsgFrom" : "raph", 
 	"MsgData" : {
 		"MsgType" : "command", 
 		"MsgParam" : "servo",
@@ -29,33 +39,33 @@
 
 
 //------------ 
-
 {
-	"MsgID" : 0, 
-	"MsgTo" : "Buggy", 
-	"MsgFrom" : "MQTTFX", 
+	"MsgID" : 8112, 
+	"MsgTo" : "buggy", 
+	"MsgFrom" : "mqttfx_wheel", 
 	"MsgData" : {
 		"MsgType" : "command", 
 		"MsgParam" : "2wd", 
 		"MsgValue" : [ {
 			"wheel" : "right", 
-			"velocity" : -25,
-			"time" : 3000,
+			"velocity" : 25,
+			"time" : 20000,
 			"decel":50,
-			"accel":20
+			"accel":50
 		}, {
 			"wheel" : "left", 
 			"velocity" : 25,
-			"time" : 3000,
-			"accel":20,
+			"time" : 20000,
+			"accel":50,
 			"decel":50
 		} ]
 	}
 }
+ 
 //---------------------------------------
 {
-    "MsgTo": "algoid",
-    "MsgFrom": "BUGGY_deadbeef0000",
+    "MsgTo": "buggy",
+    "MsgFrom": "hahahah",
     "MsgID": 9127271,
     "MsgData": {
         "MsgType": "request",
@@ -89,8 +99,8 @@
 }
 
 {
-    "MsgTo": "algoid",
-    "MsgFrom": "BUGGY_deadbeef0000",
+    "MsgTo": "buggy",
+    "MsgFrom": "raph_000",
     "MsgID": 9127271,
     "MsgData": {
         "MsgType": "request",
@@ -109,7 +119,7 @@
 }
 
 {
-	"MsgID" : 0, 
+	"MsgID" : 8765, 
 	"MsgTo" : "Buggy", 
 	"MsgFrom" : "MQTTFX", 
 	"MsgData" : {

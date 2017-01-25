@@ -21,7 +21,7 @@ typedef enum msgparam{
 	BATTERY,
 	SERVO,
 	pLED,
-	SENSORS
+	STATUS
 }t_msgparam;
 
 
@@ -72,6 +72,12 @@ struct mLed{
 	int powerPercent;
 };
 
+struct mMotor{
+	int id;
+	int speed;
+	int distance;
+	int time;
+};
 
 // Structure d'un message algoid recu
 typedef struct JsonCommand{
@@ -101,6 +107,7 @@ typedef struct JsonResponse{
 	struct mDin DINresponse;
 	struct mBattery BATTesponse;
 	struct mDistance DISTresponse;
+	struct mMotor MOTresponse;
 	// UNION ???
 }ALGOID_RESPONSE;
 

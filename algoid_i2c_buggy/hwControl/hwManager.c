@@ -32,18 +32,6 @@ typedef struct tmeasures{
 
 t_measure sensor;
 
-/*
-typedef struct tsensors{
-	unsigned char din0;
-	unsigned char din1;
-	int usonic;
-	int battery;
-	struct o_encoder left_encoder;
-	struct o_encoder right_encoder;
-}t_sensor;
-
-t_sensor buggySensor;
-*/
 int i2c_command_queuing[50][3];
 
 int timeCount_ms=0;
@@ -97,28 +85,24 @@ void *hwTask (void * arg){
 	while(1){
 		// Sequencage des messages sur bus I2C à interval régulier
 		switch(timeCount_ms){
-			case 10	: sensor.counter[MOTOR_ENCODER_LEFT].pulseFromStartup = EFM8BB_readPulseCounter(MOTOR_ENCODER_LEFT); break;
-			case 20	: sensor.counter[MOTOR_ENCODER_RIGHT].pulseFromStartup = EFM8BB_readPulseCounter(MOTOR_ENCODER_RIGHT);break;
-			case 30	: sensor.din[DIN_0] = EFM8BB_readDigitalInput(DIN_0); break;
-			case 40	: sensor.din[DIN_1] = EFM8BB_readDigitalInput(DIN_1); break;
-			case 50	: sensor.pwm[SONAR_0] = EFM8BB_readSonarDistance()/10; break;
-			case 60	: sensor.ain[BATT_0] = EFM8BB_readBatteryVoltage() ;break;
-			case 70	: break;
-			case 80	: break;
-			case 90	: break;
-			case 100 : {
-	//				printf("\n[hwManager] Battery: %dmV ultrasonic: %dcm DIN0: %d  DIN1: %d Left: %.1f  Right: %.1f \n", buggySensor.battery, buggySensor.usonic,
-	//			buggySensor.din0, buggySensor.din1, buggySensor.left_encoder.pulseFromStartup*0.285, buggySensor.right_encoder.pulseFromStartup*0.285);
-					break;}
+			case 5	: sensor.counter[MOTOR_ENCODER_LEFT].pulseFromStartup = EFM8BB_readPulseCounter(MOTOR_ENCODER_LEFT);
+					  sensor.counter[MOTOR_ENCODER_LEFT].frequency = EFM8BB_readFrequency(MOTOR_ENCODER_LEFT); break;
+			case 10	: sensor.counter[MOTOR_ENCODER_RIGHT].pulseFromStartup = EFM8BB_readPulseCounter(MOTOR_ENCODER_RIGHT);
+					  sensor.counter[MOTOR_ENCODER_RIGHT].frequency = EFM8BB_readFrequency(MOTOR_ENCODER_RIGHT); break;
+			case 15	: sensor.din[DIN_0] = EFM8BB_readDigitalInput(DIN_0); break;
+			case 20	: sensor.din[DIN_1] = EFM8BB_readDigitalInput(DIN_1); break;
+			case 25	: sensor.pwm[SONAR_0] = EFM8BB_readSonarDistance()/10; break;
+			case 30	: sensor.ain[BATT_0] = EFM8BB_readBatteryVoltage() ;break;
+
 			default: if(i2c_command_queuing[0][CALLBACK]!=0)processCommandQueue(); break;
 		}
 
 		// Reset le compteur au bout de 100mS
-		if(timeCount_ms<100)
+		if(timeCount_ms<50)
 			timeCount_ms++;
 		else timeCount_ms=0;
 
-		usleep(2000);
+		usleep(1000);
 	}
 	pthread_exit (0);
 }

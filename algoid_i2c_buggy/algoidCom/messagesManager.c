@@ -17,10 +17,11 @@ pthread_t th_messager;
 
 char ClientID[50]="BUGGY_";
 
+
 void sendMqttReport(int msgId, char * msg);
 
 int  mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_message *message);
-void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt);
+void sendResponse(int msgId, char * msgTo, unsigned char msgType, unsigned char msgParam, unsigned char valCnt);
 int pushMsgStack(void);
 int pullMsgStack(unsigned char ptrStack);
 char clearMsgStack(unsigned char ptrStack);
@@ -31,7 +32,6 @@ unsigned char mqttDataReady=0;
 char MqttDataBuffer[500];
 
 // Initialisation principale du system de messagerie
-
 void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A , 25% for ePWM0B;
 	int mqttStatus;
 	int lastMessage;
@@ -69,18 +69,24 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 	    	//printf("[DEBUG] message: %s", MqttDataBuffer);
 	    	// RECEPTION DES DONNES UTILES
 				if(GetAlgoidMsg(AlgoidMessageRX, MqttDataBuffer)>0){
-					// Enregistrement du message dans la pile
-					lastMessage=pushMsgStack();
-					if(lastMessage>=0){
-						sendResponse(AlgoidMessageRX.msgID, ACK, AlgoidMessageRX.msgParam, 0);
-						printf("Mis en file d'attente\n");
+					// Contrôle du destinataire
+					if(!strcmp(AlgoidMessageRX.msgTo, "buggy")){
+						// Enregistrement du message dans la pile
+						lastMessage=pushMsgStack();
+						if(lastMessage>=0){
+							// Retourne un ack a l'expediteur
+							sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgFrom, ACK, AlgoidMessageRX.msgParam, 0);
+							printf("Mis en file d'attente\n");
+						}
+						else{
+							printf("ERREUR: File d'attente pleine !\n");
+						}
 					}
-					else{
-						printf("ERREUR: File d'attente pleine !\n");
-					}
+					else
+						printf("IGNORE: mauvais destinataire\n");
 				}else{
-
-					sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgType, AlgoidMessageRX.msgParam, 0);
+					// Retourne une erreur a l'expediteur
+					sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgFrom, AlgoidMessageRX.msgType, AlgoidMessageRX.msgParam, 0);
 					printf("\n! MESSAGE ALGOID INCORRECT RECU !\n");
 					sendMqttReport(-1, "! MESSAGE ALGOID INCORRECT RECU !");
 				}
@@ -108,24 +114,10 @@ int pushMsgStack(void){
 		return -1;
 	}else{
 
+
 		// ENREGISTREMENT DU MESSAGE DANS LA PILE
 		AlgoidMsgRXStack[ptrMsgRXstack]=AlgoidMessageRX;
-// FOR DEBUG
-		// AFFICHAGE DES DONNEES
-/*
-		int i;
-		printf("Message to   %s   from   %s with ID %d \n",AlgoidMsgRXStack[ptrMsgRXstack].msgTo,AlgoidMsgRXStack[ptrMsgRXstack].msgFrom, AlgoidMsgRXStack[ptrMsgRXstack].msgID );
-		printf("type:  %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgType);
-		printf("param: %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgParam);
-		printf("ValCount: %d\n",AlgoidMsgRXStack[ptrMsgRXstack].msgValueCnt);
-		for(i=0;i<AlgoidMsgRXStack[ptrMsgRXstack].msgValueCnt;i++){
-			if(AlgoidMsgRXStack[ptrMsgRXstack].msgParam==100)// Commande LL_WD ?
-				printf("wheel: %s   velocity: %d   time: %d accel: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].wheel, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].velocity, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].time, AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].accel);
-//			else
-//				printf("mode: %s   value: %d\n", AlgoidMsgRXStack[ptrMsgRXstack].msgValArray[i].mode, AlgoidMsgRXStack[ptrMsgRXstack].value);
-		}
-*/
-//END DEBUG
+
 		ptrMsgRXstack++;
 		return ptrMsgRXstack-1;
 	}
@@ -143,12 +135,9 @@ int pullMsgStack(unsigned char ptrStack){
 				AlgoidCommand.msgID = rand() & 0xFFFFFF;
 			}
 
-			if(strcmp(AlgoidCommand.msgFrom, "")){
-				strcpy(AlgoidCommand.msgFrom,"unknown");
-			}
 
-			if(strcmp(AlgoidCommand.msgTo, "")){
-				strcpy(AlgoidCommand.msgTo, "unknown");
+			if(!strcmp(AlgoidCommand.msgFrom, "")){
+				strcpy(AlgoidCommand.msgFrom,"unknown");
 			}
 
 			// Déplace les elements de la pile
@@ -259,7 +248,7 @@ int mqttMsgArrived(void *context, char *topicName, int topicLen, MQTTClient_mess
 // Retourne un message MQTT
 // -------------------------------------------------------------------
 
-void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsigned char valCnt){
+void sendResponse(int msgId, char * msgTo, unsigned char msgType, unsigned char msgParam, unsigned char valCnt){
 	char MQTTbuf[1024];
 	char ackType[15], ackParam[15];
 	char topic[50];
@@ -268,7 +257,7 @@ void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsi
 	switch(msgType){
 		case COMMAND : strcpy(ackType, "command"); strcpy(topic, TOPIC_COMMAND); break;			// Commande vers l'hôte ****** NON UTILISE **********
 		case REQUEST : strcpy(ackType, "request"); strcpy(topic, TOPIC_COMMAND); break;			// Requête vers l'hôte ****** NON UTILISE **********
-		case ACK : strcpy(ackType, "ack");  strcpy(topic, TOPIC_RESPONSE); break;				// Ack vers l'hôte
+		case ACK : strcpy(ackType, "ack");  strcpy(topic, TOPIC_ACK); break;				// Ack vers l'hôte
 		case RESPONSE : strcpy(ackType, "response"); strcpy(topic, TOPIC_RESPONSE); break;		// Reponse vers l'hôte
 		case EVENT : strcpy(ackType, "event"); strcpy(topic, TOPIC_EVENT); break;				// Reponse vers l'hôtebreak;
 		case NEGOC : strcpy(ackType, "negoc"); break;
@@ -287,13 +276,12 @@ void sendResponse(int msgId, unsigned char msgType, unsigned char msgParam, unsi
 		case BATTERY : strcpy(ackParam, "battery"); break;
 		case DISTANCE : strcpy(ackParam, "distance"); break;
 		case pLED : strcpy(ackParam, "led"); break;
+		case STATUS : strcpy(ackParam, "status"); break;
 		case ERR_PARAM : strcpy(ackParam, "error"); break;
 		default : strcpy(ackParam, "unknown"); break;
 	}
 
-
-	ackToJSON(MQTTbuf, msgId, "algoid", ClientID, ackType, ackParam, msgParam, valCnt);
-
+	ackToJSON(MQTTbuf, msgId, msgTo, ClientID, ackType, ackParam, msgParam, valCnt);
 	mqttPutMessage(&topic, MQTTbuf, strlen(MQTTbuf));
 }
 
@@ -310,3 +298,9 @@ void sendMqttReport(int msgId, char * msg){
 
 	mqttPutMessage("buggyReport", MQTTbuf, strlen(MQTTbuf));
 }
+
+
+
+
+
+

@@ -32,6 +32,19 @@ void DINSafetyCheck(void);
 void BatterySafetyCheck(void);
 void DistanceSafetyCheck(void);
 
+// Fonction d'enregistrement et de recherche de l'expediteur d'un message
+// Pour les evenement asynchrone
+int getSenderFromMsgId(int msgId);
+int saveSenderOfMsgId(int msgId, char* senderName);
+int removeHeaderOfMsgId(int msgId);
+
+// Structure d'un message algoid recu
+typedef struct msgTrace{
+	int msgId;
+	char msgFrom[32];
+}MSG_TRACE;
+
+MSG_TRACE msgEventHeader[50];
 
 ////----------------------------------- A REMPLACER PAR STRUCT
 struct m_prox{
@@ -67,24 +80,22 @@ struct m_counter{
 	float stopEncoderValue;
 };
 
+struct m_motor{
+	float distance;
+	float speed;
+};
+
 typedef struct tsensor{
 	struct m_prox proximity[2];
 	struct m_dist distance[1];
 	struct m_voltage battery[1];
 	struct m_counter encoder[2];
+	struct m_motor motor[2];
 }t_sensor;
 
 t_sensor body;
 
 int ActionTable[10][3];
-
-// Data sensors
-int speed[5], dist[5];
-
-
-
-//// -----------------------------------------FIN REMPLACEMENT
-
 
 // Traitement du message algoid recu
 int processAlgoidCommand(void);
@@ -93,6 +104,7 @@ int processAlgoidRequest(void);
 int makeSensorsRequest(void);
 int makeDistanceRequest(void);
 int makeBatteryRequest(void);
+int makeStatusRequest(void);
 
 int make2WDaction(void);
 int makeServoAction(void);
@@ -103,6 +115,7 @@ int checkMotorEncoder(int actionNumber, int encoderName);
 
 int getWDvalue(int wheelName);
 int getServoSetting(int servoName);
+int getLedSetting(int ledName);
 char reportBuffer[256];
 
 
@@ -185,6 +198,7 @@ int main(void) {
 				case REQUEST : processAlgoidRequest(); break;						// Traitement du message de type "REQUEST"
 				default : ; break;
 			}
+
 		}
 
 
@@ -228,18 +242,22 @@ int main(void) {
 																		// est hors de la plage spécifiée par l'utilisateur
 
 			body.battery[0].value = getBatteryVoltage();
+
 			batteryEventCheck();
 
-			dist[0]=getMotorPulses(MOTOR_LEFT);
-			dist[1]=getMotorPulses(MOTOR_RIGHT);
+			body.motor[MOTOR_LEFT].speed=getMotorFrequency(MOTOR_LEFT)*0.36;
+			body.motor[MOTOR_RIGHT].speed=getMotorFrequency(MOTOR_RIGHT)*0.36;
 
-			speed[0]=getMotorFrequency(0);
-			speed[1]=getMotorFrequency(1);
+			body.motor[MOTOR_LEFT].distance=getMotorPulses(MOTOR_LEFT)*0.285;
+			body.motor[MOTOR_RIGHT].distance=getMotorPulses(MOTOR_RIGHT)*0.285;
+
+
 			// est hors a plage spécifiée par les paramettre utilisateur
 
 			//printf("\nBattery: %d, safetyStop_state: %d safetyStop_value: %d", 0, body.battery[0].safetyStop_state, body.battery[0].safetyStop_value);
-			//printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm", speed[0]*0.285, speed[1]*0.285, dist[0]*0.285, dist[1]*0.285);
-			//printf(" dist US: %d cm\n", distance[0]);
+//			printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm",
+//					body.motor[MOTOR_LEFT].speed, body.motor[MOTOR_RIGHT].speed, body.motor[MOTOR_LEFT].distance, body.motor[MOTOR_RIGHT].distance);
+//			printf(" dist US: %d cm\n", body.distance[0].value);
 
 			t100msFlag=0;												// Quittance le flag 100mS
     	}
@@ -278,7 +296,6 @@ int processAlgoidCommand(void){
 // Séléction et traite le paramètre de requete recu [DISTANCE, TENSION BATTERIE, ENTREE DIGITAL, etc...]
 // -------------------------------------------------------------------
 int processAlgoidRequest(void){
-
 	switch(AlgoidCommand.msgParam){
 		case DISTANCE : makeDistanceRequest();					// Requete de distance
 						break;
@@ -288,6 +305,9 @@ int processAlgoidRequest(void){
 
 		case DINPUT :	makeSensorsRequest();					// Requet d'état des entrées digitale
 						break;
+
+		case STATUS :	makeStatusRequest();					// Requet d'état des entrées digitale
+								break;
 
 		default : break;
 	}
@@ -317,6 +337,10 @@ int make2WDaction(void){
 	if(myTaskId>0){
 		printf("Creation de tache WHEEL: #%d avec %d actions\n", myTaskId, actionCount);
 
+		// Sauvegarde du nom de l'emetteur et du ID du message pour la réponse
+		// en fin d'évenement
+		saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+
 		// Récupération des paramètres d'action  pour la roue "LEFT"
 		ptrData=getWDvalue(MOTOR_LEFT);
 		if(ptrData >=0){
@@ -345,12 +369,11 @@ int make2WDaction(void){
 
 		// Retourne un message ALGOID si velocité hors tolérences
 		if((AlgoidCommand.msgValArray[ptrData].velocity < -100) ||(AlgoidCommand.msgValArray[ptrData].velocity > 100))
-			sendResponse(AlgoidCommand.msgID, WARNING, LL_2WD, 0);
+			sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom,  WARNING, LL_2WD, 0);
 		return 0;
 	}
 	else return 1;
 }
-
 
 // -------------------------------------------------------------------
 // makeServoAction
@@ -378,6 +401,10 @@ int makeServoAction(void){
 	if(myTaskId>0){
 		printf("Creation de tache SERVO: #%d avec %d actions\n", myTaskId, actionCount);
 
+		// Sauvegarde du nom de l'emetteur et du ID du message pour la réponse
+		// en fin d'évenement
+		saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+
 		for(ptrData=0; action < actionCount && ptrData<10; ptrData++){
 			if(AlgoidCommand.SERVOmotor[ptrData].id>=0){
 				setServoPosition(AlgoidCommand.SERVOmotor[ptrData].id, AlgoidCommand.SERVOmotor[ptrData].angle);
@@ -385,7 +412,16 @@ int makeServoAction(void){
 				endOfTask=removeBuggyTask(myTaskId);
 				if(endOfTask>0){
 					sprintf(reportBuffer, "FIN DES ACTIONS \"SERVO\" pour la tache #%d\n", endOfTask);
-					sendResponse(endOfTask, EVENT, SERVO, 0);				// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+
+					// Récupère l'expediteur original du message ayant provoqué
+					// l'évenement
+					char msgTo[32];
+					int ptr=getSenderFromMsgId(endOfTask);
+					strcpy(msgTo, msgEventHeader[ptr].msgFrom);
+					// Libère la memorisation de l'expediteur
+					removeHeaderOfMsgId(endOfTask);
+
+					sendResponse(endOfTask, msgTo, EVENT, SERVO, 0);				// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 					printf(reportBuffer);									// Affichage du message dans le shell
 					sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
 				}
@@ -424,6 +460,10 @@ int makeLedAction(void){
 	if(myTaskId>0){
 		printf("Creation de tache LED: #%d avec %d actions\n", myTaskId, actionCount);
 
+		// Sauvegarde du nom de l'emetteur et du ID du message pour la réponse
+		// en fin d'évenement
+		saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+
 		for(ptrData=0; action < actionCount && ptrData<10; ptrData++){
 			if(AlgoidCommand.LEDarray[ptrData].id>=0){
 				setLedPower(AlgoidCommand.LEDarray[ptrData].id, AlgoidCommand.LEDarray[ptrData].powerPercent);
@@ -431,7 +471,16 @@ int makeLedAction(void){
 				endOfTask=removeBuggyTask(myTaskId);
 				if(endOfTask>0){
 					sprintf(reportBuffer, "FIN DES ACTIONS \"LED\" pour la tache #%d\n", endOfTask);
-					sendResponse(endOfTask, EVENT, pLED, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+
+					// Récupère l'expediteur original du message ayant provoqué
+					// l'évenement
+					char msgTo[32];
+					int ptr=getSenderFromMsgId(endOfTask);
+					strcpy(msgTo, msgEventHeader[ptr].msgFrom);
+					// Libère la memorisation de l'expediteur
+					removeHeaderOfMsgId(endOfTask);
+
+					sendResponse(endOfTask, msgTo, EVENT, pLED, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 					printf(reportBuffer);									// Affichage du message dans le shell
 					sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
 				}
@@ -484,8 +533,17 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 		if(setTimerResult>1){							// Le timer à été écrasé par la nouvelle action en retour car sur la même roue
 			endOfTask=removeBuggyTask(setTimerResult);	// Supprime l'ancienne tâche qui à été écrasée par la nouvelle action
 			if(endOfTask){
-				sendResponse(endOfTask, EVENT, LL_2WD, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 				sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
+
+				// Récupère l'expediteur original du message ayant provoqué
+				// l'évenement
+				char msgTo[32];
+				int ptr=getSenderFromMsgId(endOfTask);
+				strcpy(msgTo, msgEventHeader[ptr].msgFrom);
+				// Libère la memorisation de l'expediteur
+				removeHeaderOfMsgId(endOfTask);
+
+				sendResponse(endOfTask, AlgoidCommand.msgFrom, EVENT, LL_2WD, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 				printf(reportBuffer);									// Affichage du message dans le shell
 				sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
 			}
@@ -530,7 +588,25 @@ int endWheelAction(int actionNumber, int wheelNumber){
 
 	// Contrôle que toutes les actions ont été effectuée pour la commande recue dans le message ALGOID
 	if(endOfTask){
-		sendResponse(endOfTask, EVENT, LL_2WD, 0);
+		// Récupère l'expediteur original du message ayant provoqué
+		// l'évenement
+		char msgTo[32];
+		int ptr=getSenderFromMsgId(endOfTask);
+		strcpy(msgTo, msgEventHeader[ptr].msgFrom);
+		// Libère la memorisation de l'expediteur
+		removeHeaderOfMsgId(endOfTask);
+
+		// Récupère la distance et la vitesse actuelle du moteur
+		// Pour retour event a l'expediteur originel
+		int i;
+		for(i=0;i<NBMOTOR;i++){
+			AlgoidResponse[i].MOTresponse.id=i;
+			AlgoidResponse[i].MOTresponse.speed=body.motor[i].speed;
+			AlgoidResponse[i].MOTresponse.distance=body.motor[i].distance;
+			AlgoidResponse[i].MOTresponse.time=9999;
+		}
+
+		sendResponse(endOfTask, msgTo, EVENT, LL_2WD, NBMOTOR);
 		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
 		sendMqttReport(endOfTask, reportBuffer);
@@ -608,7 +684,7 @@ int getServoSetting(int servoName){
 // -------------------------------------------------------------------
 // GETLEDSETTING
 // Recherche dans le message algoid, les paramètres
-// pour une servomoteur spécifié
+// pour une LED spécifiée
 // -------------------------------------------------------------------
 int getLedSetting(int ledName){
 	int i;
@@ -692,6 +768,52 @@ int removeBuggyTask(int actionNumber){
 	return(-1);												// Tâche inexistante
 }
 
+
+// -------------------------------------------------------------------
+// MAKESTATUSREQUEST
+// Traitement de la requete STATUS
+// Envoie une message ALGOID de type "response" avec l'état des entrées DIN, tension batterie, distance sonar, vitesse et distance des roues
+// -------------------------------------------------------------------
+int makeStatusRequest(void){
+	unsigned char i;
+	unsigned char ptrData=0;
+
+	AlgoidCommand.msgValueCnt=0;
+
+	AlgoidCommand.msgValueCnt = NBDIN + NBAIN + NBPWM + NBMOTOR; // Nombre de DIN à transmettre
+
+	for(i=0;i<NBDIN;i++){
+		AlgoidResponse[ptrData].DINresponse.id=i;
+		AlgoidResponse[ptrData].value=body.proximity[i].state;
+		ptrData++;
+	}
+
+	for(i=0;i<NBAIN;i++){
+		AlgoidResponse[ptrData].BATTesponse.id=i;
+		AlgoidResponse[ptrData].value=body.battery[i].value;
+		ptrData++;
+	}
+
+	for(i=0;i<NBPWM;i++){
+		AlgoidResponse[ptrData].DISTresponse.id=i;
+		AlgoidResponse[ptrData].value=body.distance[i].value;
+		ptrData++;
+	}
+
+	for(i=0;i<NBMOTOR;i++){
+		AlgoidResponse[ptrData].MOTresponse.id=i;
+		AlgoidResponse[ptrData].MOTresponse.speed=body.motor[i].speed;
+		AlgoidResponse[ptrData].MOTresponse.distance=body.motor[i].distance;
+		ptrData++;
+	}
+
+
+	// Envoie de la réponse MQTT
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, RESPONSE, STATUS, AlgoidCommand.msgValueCnt);
+	return (1);
+}
+
+
 // -------------------------------------------------------------------
 // MAKESENSORREQUEST
 // Traitement de la requete SENSORS
@@ -705,7 +827,6 @@ int makeSensorsRequest(void){
 		AlgoidCommand.msgValueCnt=NBDIN;
 		for(i=0;i<NBDIN;i++){
 			AlgoidResponse[i].DINresponse.id=i;
-//			AlgoidResponse[i].value=body.proximity[i].state;
 		}
 	}else
 		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
@@ -734,8 +855,9 @@ int makeSensorsRequest(void){
 		AlgoidResponse[i].DINresponse.safetyStop_value = body.proximity[temp].safetyStop_value;
 	};
 
+
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, RESPONSE, DINPUT, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, RESPONSE, DINPUT, AlgoidCommand.msgValueCnt);
 	return (1);
 }
 
@@ -760,8 +882,14 @@ int makeDistanceRequest(void){
 			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
 				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.DISTsens[i].id;
 				// Activation de l'envoie de messages sur évenements
-				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")) body.distance[AlgoidCommand.DISTsens[i].id].event_enable=1;
-				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")) body.distance[AlgoidCommand.DISTsens[i].id].event_enable=0;
+				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")){
+						body.distance[AlgoidCommand.DISTsens[i].id].event_enable=1;
+						saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+				}
+				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")){
+					body.distance[AlgoidCommand.DISTsens[i].id].event_enable=0;
+					removeHeaderOfMsgId(AlgoidCommand.msgID);
+				}
 				// Evemenent haut
 				if(AlgoidCommand.DISTsens[i].event_high!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_high=AlgoidCommand.DISTsens[i].event_high;
 				if(AlgoidCommand.DISTsens[i].event_low!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_low=AlgoidCommand.DISTsens[i].event_low;
@@ -790,7 +918,7 @@ int makeDistanceRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, AlgoidCommand.msgValueCnt);
 
 		return 1;
 }
@@ -819,8 +947,14 @@ int makeBatteryRequest(void){
 				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.BATTsens[i].id;
 				// Recherche de paramètres supplémentaires
 				// Evenement activées
-				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")) body.battery[AlgoidCommand.BATTsens[i].id].event_enable=1;
-				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")) body.battery[AlgoidCommand.BATTsens[i].id].event_enable=0;
+				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")){
+					body.battery[AlgoidCommand.BATTsens[i].id].event_enable=1;
+					saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+				}
+				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")){
+					body.battery[AlgoidCommand.BATTsens[i].id].event_enable=0;
+					removeHeaderOfMsgId(AlgoidCommand.msgID);
+				}
 				// Evemenent haut
 				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_high=AlgoidCommand.BATTsens[i].event_high;
 				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_low=AlgoidCommand.BATTsens[i].event_low;
@@ -836,8 +970,14 @@ int makeBatteryRequest(void){
 
 		AlgoidResponse[i].value=body.battery[temp].value;
 
-		if(body.battery[temp].event_enable)strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
-		else strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
+		if(body.battery[temp].event_enable){
+			strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
+			saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+		}
+		else{
+			strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
+			removeHeaderOfMsgId(AlgoidCommand.msgID);
+		}
 		AlgoidResponse[i].BATTesponse.event_high=body.battery[temp].event_high;
 		AlgoidResponse[i].BATTesponse.event_low=body.battery[temp].event_low;
 
@@ -847,7 +987,7 @@ int makeBatteryRequest(void){
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, BATTERY, AlgoidCommand.msgValueCnt);
 		return 1;
 }
 
@@ -869,14 +1009,14 @@ void distanceEventCheck(void){
 				if(distWarningSended[i]==0){													// N'envoie l' event qu'une seule fois
 					AlgoidResponse[i].DISTresponse.id=i;
 					AlgoidResponse[i].value=body.distance[i].value;
-					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, 1);
 					distWarningSended[i]=1;
 				}
 			}
 			else if (distWarningSended[i]==1){													// Mesure de distance revenu dans la plage
 					AlgoidResponse[i].DISTresponse.id=i;									// Et n'envoie qu'une seule fois le message
 					AlgoidResponse[i].value=body.distance[i].value;
-					sendResponse(AlgoidCommand.msgID, EVENT, DISTANCE, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, 1);
 					distWarningSended[i]=0;
 			}
 		}
@@ -902,7 +1042,7 @@ void batteryEventCheck(void){
 				if(battWarningSended[i]==0){														// N'envoie qu'une seule fois l'EVENT
 					AlgoidResponse[i].BATTesponse.id=i;
 					AlgoidResponse[i].value=body.battery[i].value;
-					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, BATTERY, 1);
 					battWarningSended[i]=1;
 				}
 			}
@@ -910,7 +1050,7 @@ void batteryEventCheck(void){
 			else if (battWarningSended[i]==1 && body.battery[i].value > (body.battery[i].event_low + body.battery[i].event_hysteresis)){				// Mesure tension dans la plage
 					AlgoidResponse[i].BATTesponse.id=i;											// n'envoie qu'une seule fois après
 					AlgoidResponse[i].value=body.battery[i].value;											// une hysterese de 50mV
-					sendResponse(AlgoidCommand.msgID, EVENT, BATTERY, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, BATTERY, 1);
 					battWarningSended[i]=0;
 			}
 		}
@@ -945,7 +1085,7 @@ void DINEventCheck(void){
 	}
 
 	if(DINevent>0)
-		sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINevent);
+		sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DINPUT, DINevent);
 }
 
 
@@ -1046,5 +1186,62 @@ void DistanceSafetyCheck(void){
 		// ACTION A EFFECTUER
 		//sendResponse(AlgoidCommand.msgID, EVENT, DINPUT, DINsafety);
 	}
+}
+
+
+// -------------------------------------------------------------------
+// GETSENDERFROMMSGID
+// Retourne l'index dans la table des messages avec le ID correspondant
+// -------------------------------------------------------------------
+int getSenderFromMsgId(int msgId){
+	unsigned char i = -1;
+	char ptr = -1;
+
+		for(i=0; i<20; i++){
+			if(msgEventHeader[i].msgId == msgId){
+				ptr = i;
+				break;
+			}
+		}
+	return ptr;			// Return -1 if no msgId found
+}
+
+// -------------------------------------------------------------------
+// SAVESENDEROFMSGID
+// Enregistre l'ID et expediteur dans la table des messages
+// -------------------------------------------------------------------
+
+int saveSenderOfMsgId(int msgId, char* senderName){
+	unsigned char i;
+	unsigned char messageIsSave=0;
+
+		while((i<20) && (!messageIsSave)){
+			if(msgEventHeader[i].msgId<=0){
+				strcpy(msgEventHeader[i].msgFrom, senderName);
+				msgEventHeader[i].msgId=msgId;
+				messageIsSave=1;
+			}
+			i++;
+		}
+
+	if(messageIsSave)	return (i-1);
+	else	return (-1);
+
+}
+
+// -------------------------------------------------------------------
+// REMOVEHEADEROFMSGID
+// Libere l'emplacement dans la table des messages
+// -------------------------------------------------------------------
+int removeHeaderOfMsgId(int msgId){
+	unsigned char i;
+		for(i=0; i<20; i++){
+			if(msgEventHeader[i].msgId == msgId){
+				strcpy(msgEventHeader[i].msgFrom, "*");
+				msgEventHeader[i].msgId = -1;
+				break;
+			}
+		}
+	return 1;
 }
 

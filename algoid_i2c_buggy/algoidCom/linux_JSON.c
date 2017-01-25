@@ -108,7 +108,7 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 					if(!strcmp(myDataString, "distance")) AlgoidMessageRX.msgParam = DISTANCE;
 					if(!strcmp(myDataString, "battery")) AlgoidMessageRX.msgParam = BATTERY;
 					if(!strcmp(myDataString, "din")) AlgoidMessageRX.msgParam = DINPUT;
-					if(!strcmp(myDataString, "sensors")) AlgoidMessageRX.msgParam = SENSORS;
+					if(!strcmp(myDataString, "status")) AlgoidMessageRX.msgParam = STATUS;
 
 				  jRead((char *)srcBuffer, KEY_MESSAGE_VALUE, &element );
 
@@ -185,15 +185,19 @@ char GetAlgoidMsg(ALGOID destMessage, char *srcBuffer){
 				    		  AlgoidMessageRX.LEDarray[i].powerPercent= jRead_long((char *)srcBuffer, KEY_MESSAGE_VALUE_POWER, &i);
 				    	  }
 
+
+				    	  if(AlgoidMessageRX.msgParam == STATUS){
+				    		  // To do: Detect if wheel, sonar, batery, etc...
+				    	  }
 				    }
 				  }
-				  else AlgoidMessageRX.msgValueCnt=0;
+				  else
+					  AlgoidMessageRX.msgValueCnt=0;
 
 				  if((AlgoidMessageRX.msgParam == ERR_PARAM) || (AlgoidMessageRX.msgType == ERR_TYPE)){
 					  return 0;
 				  }else
 					  return 1;
-
 }
 
 
@@ -221,35 +225,76 @@ void ackToJSON(char * buffer, int msgId, char* to, char* from, char* msgType, ch
 					//printf("Make array: %d values: %d %d\n", i, 0,9);
 					jwArr_object();
 						switch(valStr){
-						case DISTANCE :	jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);				// add object key:value pairs
-										jwObj_int("cm", round((AlgoidResponse[i].value)));					// add object key:value pairs
-										jwObj_int("angle", AlgoidResponse[i].DISTresponse.angle);				// add object key:value pairs
-										jwObj_string("event", AlgoidResponse[i].DISTresponse.event_state);				// add object key:value pairs
-										jwObj_int("event_lower", AlgoidResponse[i].DISTresponse.event_low);				// add object key:value pairs
-										jwObj_int("event_higher", AlgoidResponse[i].DISTresponse.event_high);				// add object key:value pairs
-										jwObj_string("safety_stop", AlgoidResponse[i].DISTresponse.safetyStop_state);				// add object key:value pairs
-										jwObj_int("safety_value", AlgoidResponse[i].DISTresponse.safetyStop_value);				// add object key:value pairs
-										break;
+							case LL_2WD :
+											if(AlgoidResponse[i].MOTresponse.id == 0) jwObj_string("wheel", "left");							// add object key:value pairs
+											if(AlgoidResponse[i].MOTresponse.id == 1) jwObj_string("wheel", "right");							// add object key:value pairs
+											jwObj_int( "cm", AlgoidResponse[i].MOTresponse.distance);				// add object key:value pairs
+											jwObj_int( "time", AlgoidResponse[i].MOTresponse.time);				// add object key:value pairs
+											jwObj_int("speed", round((AlgoidResponse[i].MOTresponse.speed)));		// add object key:value pairs
+										   break;
 
-						case BATTERY :
-										jwObj_int( "battery",AlgoidResponse[i].BATTesponse.id);				// add object key:value pairs
-										jwObj_int("mV", AlgoidResponse[i].value);				// add object key:value pairs
-										jwObj_string("event", AlgoidResponse[i].BATTesponse.event_state);				// add object key:value pairs
-										jwObj_int("event_lower", AlgoidResponse[i].BATTesponse.event_low);				// add object key:value pairs
-										jwObj_int("event_higher", AlgoidResponse[i].BATTesponse.event_high);				// add object key:value pairs
-										jwObj_string("safety_stop", AlgoidResponse[i].BATTesponse.safetyStop_state);				// add object key:value pairs
-										jwObj_int("safety_value", AlgoidResponse[i].BATTesponse.safetyStop_value);				// add object key:value pairs
-									    break;
+							case DISTANCE :	jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);				// add object key:value pairs
+											jwObj_int("cm", round((AlgoidResponse[i].value)));					// add object key:value pairs
+											jwObj_int("angle", AlgoidResponse[i].DISTresponse.angle);				// add object key:value pairs
+											jwObj_string("event", AlgoidResponse[i].DISTresponse.event_state);				// add object key:value pairs
+											jwObj_int("event_lower", AlgoidResponse[i].DISTresponse.event_low);				// add object key:value pairs
+											jwObj_int("event_higher", AlgoidResponse[i].DISTresponse.event_high);				// add object key:value pairs
+											jwObj_string("safety_stop", AlgoidResponse[i].DISTresponse.safetyStop_state);				// add object key:value pairs
+											jwObj_int("safety_value", AlgoidResponse[i].DISTresponse.safetyStop_value);				// add object key:value pairs
+											break;
 
-						case DINPUT :
-										jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
-										jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
-										jwObj_string("event", AlgoidResponse[i].DINresponse.event_state);				// add object key:value pairs
-										jwObj_string("safety_stop", AlgoidResponse[i].DINresponse.safetyStop_state);				// add object key:value pairs
-										jwObj_int("safety_value", AlgoidResponse[i].DINresponse.safetyStop_value);				// add object key:value pairs
-									   break;
+							case BATTERY :
+											jwObj_int( "battery",AlgoidResponse[i].BATTesponse.id);				// add object key:value pairs
+											jwObj_int("mV", AlgoidResponse[i].value);				// add object key:value pairs
+											jwObj_string("event", AlgoidResponse[i].BATTesponse.event_state);				// add object key:value pairs
+											jwObj_int("event_lower", AlgoidResponse[i].BATTesponse.event_low);				// add object key:value pairs
+											jwObj_int("event_higher", AlgoidResponse[i].BATTesponse.event_high);				// add object key:value pairs
+											jwObj_string("safety_stop", AlgoidResponse[i].BATTesponse.safetyStop_state);				// add object key:value pairs
+											jwObj_int("safety_value", AlgoidResponse[i].BATTesponse.safetyStop_value);				// add object key:value pairs
+											break;
 
-						default:  	   break;
+							case DINPUT :
+											jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
+											jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
+											jwObj_string("event", AlgoidResponse[i].DINresponse.event_state);				// add object key:value pairs
+											jwObj_string("safety_stop", AlgoidResponse[i].DINresponse.safetyStop_state);				// add object key:value pairs
+											jwObj_int("safety_value", AlgoidResponse[i].DINresponse.safetyStop_value);				// add object key:value pairs
+										   break;
+
+							case STATUS :
+
+												switch(i){
+													case 0 :jwObj_int("din",AlgoidResponse[i].DINresponse.id);		// add object key:value pairs
+															jwObj_int( "State", AlgoidResponse[i].value);			// add object key:value pairs
+															break;
+
+													case 1 :jwObj_int("din",AlgoidResponse[i].DINresponse.id);		// add object key:value pairs
+															jwObj_int( "State", AlgoidResponse[i].value);			// add object key:value pairs
+															break;
+
+													case 2 :jwObj_int("battery",AlgoidResponse[i].BATTesponse.id);	// add object key:value pairs
+															jwObj_int( "mV", AlgoidResponse[i].value);				// add object key:value pairs
+															break;
+
+													case 3 :jwObj_int("sonar",AlgoidResponse[i].DISTresponse.id);	// add object key:value pairs
+															jwObj_int("cm", round((AlgoidResponse[i].value)));		// add object key:value pairs
+															break;
+
+													case 4 :jwObj_string("wheel", "left");	// add object key:value pairs
+															jwObj_int("distance", round((AlgoidResponse[i].MOTresponse.distance)));		// add object key:value pairs
+															jwObj_int("speed", round((AlgoidResponse[i].MOTresponse.speed)));		// add object key:value pairs
+															break;
+
+													case 5 :jwObj_string("wheel", "right");	// add object key:value pairs
+															jwObj_int("distance", round((AlgoidResponse[i].MOTresponse.distance)));		// add object key:value pairs
+															jwObj_int("speed", round((AlgoidResponse[i].MOTresponse.speed)));		// add object key:value pairs
+															break;
+													default : break;
+												}
+
+										   break;
+
+							default:  	   break;
 
 						}
 					jwEnd();
