@@ -60,7 +60,6 @@ void *TimerTask (void * arg){
 			}
 		}
 
-
 		// Controle le time out de 50ms
 		if(cyclicTimer50ms>=50){
 			checkMotorPowerFlag=1;

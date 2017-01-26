@@ -89,7 +89,7 @@ typedef struct JsonCommand{
 	unsigned char msgValueCnt;
 
 	// UNION ???
-	struct m2wd msgValArray[20];
+	struct m2wd DCmotor[20];
 
 	struct mDin DINsens[20];
 	struct mDistance DISTsens[20];
@@ -103,6 +103,8 @@ typedef struct JsonCommand{
 // Structure de réponse à un message algoid
 typedef struct JsonResponse{
 	int value;
+	unsigned char actionState;
+
 	// UNION ???
 	struct mDin DINresponse;
 	struct mBattery BATTesponse;

@@ -155,7 +155,7 @@ int pullMsgStack(unsigned char ptrStack){
 			AlgoidMsgRXStack[9].msgValueCnt=0;
 
 			for(i=0;i<AlgoidMsgRXStack[9].msgValueCnt;i++){
-				AlgoidMsgRXStack[9].msgValArray[i].wheel=UNKNOWN;
+				AlgoidMsgRXStack[9].DCmotor[i].wheel=UNKNOWN;
 			}
 
 			return 1;
@@ -176,9 +176,9 @@ char clearMsgStack(unsigned char ptrStack){
 			AlgoidMsgRXStack[ptrStack].msgType=-1;
 
 			for(i=0;i<AlgoidMsgRXStack[ptrStack].msgValueCnt;i++){
-				strcpy(AlgoidMsgRXStack[ptrStack].msgValArray[i].wheel, "");
-				AlgoidMsgRXStack[ptrStack].msgValArray[i].time=-1;
-				AlgoidMsgRXStack[ptrStack].msgValArray[i].velocity=-1;
+				strcpy(AlgoidMsgRXStack[ptrStack].DCmotor[i].wheel, "");
+				AlgoidMsgRXStack[ptrStack].DCmotor[i].time=-1;
+				AlgoidMsgRXStack[ptrStack].DCmotor[i].velocity=-1;
 			}
 			return 0;
 		}
