@@ -326,7 +326,7 @@ int make2WDaction(void){
 
 	// Recherche s'il y a des paramètres pour chaque roue
 	// Des paramètres recu pour une roue crée une action à effectuer
-	if(getWDvalue(MOTOR_LEFT)>=0) actionCount++;
+	if(getWDvalue(MOTOR_LEFT)>=0)  actionCount++;
 	if(getWDvalue(MOTOR_RIGHT)>=0) actionCount++;
 
 	// Ouverture d'une tâche pour les toutes les actions du message algoid à effectuer
@@ -345,31 +345,39 @@ int make2WDaction(void){
 		ptrData=getWDvalue(MOTOR_LEFT);
 		if(ptrData >=0){
 			// Enregistre la donnée d'acceleration si disponible (<0)
-			if(AlgoidCommand.msgValArray[ptrData].accel!=0 || AlgoidCommand.msgValArray[ptrData].decel!=0)
-				setMotorAccelDecel(MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
+			if(AlgoidCommand.DCmotor[ptrData].accel!=0 || AlgoidCommand.DCmotor[ptrData].decel!=0)
+				setMotorAccelDecel(MOTOR_LEFT, AlgoidCommand.DCmotor[ptrData].accel, AlgoidCommand.DCmotor[ptrData].decel);
+
 			// Effectue l'action sur la roue
-			if(AlgoidCommand.msgValArray[ptrData].cm != 0)
-				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, CENTIMETER, AlgoidCommand.msgValArray[ptrData].cm);
+			if(AlgoidCommand.DCmotor[ptrData].cm != 0)
+				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.DCmotor[ptrData].velocity, CENTIMETER, AlgoidCommand.DCmotor[ptrData].cm);
 			else
-				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.msgValArray[ptrData].velocity, MILLISECOND, AlgoidCommand.msgValArray[ptrData].time);
+				setWheelAction(myTaskId, MOTOR_LEFT, AlgoidCommand.DCmotor[ptrData].velocity, MILLISECOND, AlgoidCommand.DCmotor[ptrData].time);
 		}
 
 		// Récupération des paramètres d'action  pour la roue "RIGHT"
 		ptrData=getWDvalue(MOTOR_RIGHT);
 		if(ptrData >=0){
 			// Enregistre la donnée d'acceleration si disponible (<0)
-			if(AlgoidCommand.msgValArray[ptrData].accel>0 || AlgoidCommand.msgValArray[ptrData].decel>0)
-				setMotorAccelDecel(MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].accel, AlgoidCommand.msgValArray[ptrData].decel);
+			if(AlgoidCommand.DCmotor[ptrData].accel>0 || AlgoidCommand.DCmotor[ptrData].decel>0)
+				setMotorAccelDecel(MOTOR_RIGHT, AlgoidCommand.DCmotor[ptrData].accel, AlgoidCommand.DCmotor[ptrData].decel);
 
-			if(AlgoidCommand.msgValArray[ptrData].cm != 0)
-				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, CENTIMETER, AlgoidCommand.msgValArray[ptrData].cm);
+			if(AlgoidCommand.DCmotor[ptrData].cm != 0)
+				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.DCmotor[ptrData].velocity, CENTIMETER, AlgoidCommand.DCmotor[ptrData].cm);
 			else
-				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.msgValArray[ptrData].velocity, MILLISECOND, AlgoidCommand.msgValArray[ptrData].time);
+				setWheelAction(myTaskId, MOTOR_RIGHT, AlgoidCommand.DCmotor[ptrData].velocity, MILLISECOND, AlgoidCommand.DCmotor[ptrData].time);
 		}
 
 		// Retourne un message ALGOID si velocité hors tolérences
-		if((AlgoidCommand.msgValArray[ptrData].velocity < -100) ||(AlgoidCommand.msgValArray[ptrData].velocity > 100))
+		if((AlgoidCommand.DCmotor[ptrData].velocity < -100) ||(AlgoidCommand.DCmotor[ptrData].velocity > 100))
 			sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom,  WARNING, LL_2WD, 0);
+
+		// Défini l'action comme "démarrée"
+		AlgoidResponse[0].actionState = 1;
+
+		// Retourne un message ALGOID "run"
+		sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom,  RESPONSE, LL_2WD, 1);
+
 		return 0;
 	}
 	else return 1;
@@ -532,6 +540,7 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 	if(setTimerResult!=0){								// Timer pret, action effectuée
 		if(setTimerResult>1){							// Le timer à été écrasé par la nouvelle action en retour car sur la même roue
 			endOfTask=removeBuggyTask(setTimerResult);	// Supprime l'ancienne tâche qui à été écrasée par la nouvelle action
+
 			if(endOfTask){
 				sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 
@@ -543,10 +552,13 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 				// Libère la memorisation de l'expediteur
 				removeHeaderOfMsgId(endOfTask);
 
-				sendResponse(endOfTask, AlgoidCommand.msgFrom, EVENT, LL_2WD, 0);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
+				AlgoidResponse[0].actionState=2;
+
+				sendResponse(endOfTask, AlgoidCommand.msgFrom, RESPONSE, LL_2WD, 1);			// Envoie un message ALGOID de fin de tâche pour l'action écrasé
 				printf(reportBuffer);									// Affichage du message dans le shell
 				sendMqttReport(endOfTask, reportBuffer);				// Envoie le message sur le canal MQTT "Report"
 			}
+
 		}
 
 		// Défini le "nouveau" sens de rotation à applique au moteur ainsi que la consigne de vitesse
@@ -598,15 +610,17 @@ int endWheelAction(int actionNumber, int wheelNumber){
 
 		// Récupère la distance et la vitesse actuelle du moteur
 		// Pour retour event a l'expediteur originel
-		int i;
+/*		int i;
 		for(i=0;i<NBMOTOR;i++){
 			AlgoidResponse[i].MOTresponse.id=i;
 			AlgoidResponse[i].MOTresponse.speed=body.motor[i].speed;
 			AlgoidResponse[i].MOTresponse.distance=body.motor[i].distance;
 			AlgoidResponse[i].MOTresponse.time=9999;
 		}
+*/
+		AlgoidResponse[0].actionState=0;
 
-		sendResponse(endOfTask, msgTo, EVENT, LL_2WD, NBMOTOR);
+		sendResponse(endOfTask, msgTo, RESPONSE, LL_2WD, 1);
 		sprintf(reportBuffer, "FIN DES ACTIONS \"WHEEL\" pour la tache #%d\n", endOfTask);
 		printf(reportBuffer);
 		sendMqttReport(endOfTask, reportBuffer);
@@ -654,12 +668,13 @@ int getWDvalue(int wheelName){
 	int i;
 	int searchPtr = -1;
 
-	// Recherche dans les donnée recues la valeur correspondante au paramètre "wheelName"
-	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
-		if(wheelName == AlgoidCommand.msgValArray[i].wheel)
-			searchPtr=i;
-	}
-	return searchPtr;
+	// Vérifie que le moteur est existant...
+		// Recherche dans les donnée recues la valeur correspondante au paramètre "wheelName"
+		for(i=0;i<AlgoidCommand.msgValueCnt;i++){
+			if(wheelName == AlgoidCommand.DCmotor[i].wheel)
+				searchPtr=i;
+		}
+		return searchPtr;
 }
 
 // -------------------------------------------------------------------
@@ -832,30 +847,37 @@ int makeSensorsRequest(void){
 		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 		for(i=0;i<AlgoidCommand.msgValueCnt; i++){
 			AlgoidResponse[i].DINresponse.id = AlgoidCommand.DINsens[i].id;
+			// Contrôle que le capteur soit pris en charge
+			if(AlgoidCommand.DINsens[i].id < NBDIN){
+				// Recherche de paramètres supplémentaires et enregistrement des donnée en "local"
+				if(!strcmp(AlgoidCommand.DINsens[i].event_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=1; 			// Activation de l'envoie de messages sur évenements
+				else if(!strcmp(AlgoidCommand.DINsens[i].event_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=0;    // Désactivation de l'envoie de messages sur évenements
 
-			// Recherche de paramètres supplémentaires et enregistrement des donnée en "local"
-			if(!strcmp(AlgoidCommand.DINsens[i].event_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=1; 			// Activation de l'envoie de messages sur évenements
-			else if(!strcmp(AlgoidCommand.DINsens[i].event_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].event_enable=0;    // Désactivation de l'envoie de messages sur évenements
+				if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=1; 			// Activation de l'envoie de messages sur évenements
+				else if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=0;    // Désactivation de l'envoie de messages sur évenemen
 
-			if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "on"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=1; 			// Activation de l'envoie de messages sur évenements
-			else if(!strcmp(AlgoidCommand.DINsens[i].safetyStop_state, "off"))	body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_state=0;    // Désactivation de l'envoie de messages sur évenemen
-
-			body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_value = AlgoidCommand.DINsens[i].safetyStop_value;
+				body.proximity[AlgoidCommand.DINsens[i].id].safetyStop_value = AlgoidCommand.DINsens[i].safetyStop_value;
+			} else
+				AlgoidResponse[i].value = -1;
 		};
 
-	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
-	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES ---
+	for(i=0;i<AlgoidCommand.msgValueCnt;i++){
 		int temp = AlgoidResponse[i].DINresponse.id;
-		AlgoidResponse[i].value = body.proximity[temp].state;
-		if(body.proximity[temp].event_enable) strcpy(AlgoidResponse[i].DINresponse.event_state, "on");
-			else strcpy(AlgoidResponse[i].DINresponse.event_state, "off");
 
-		if(body.proximity[temp].safetyStop_state) strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "on");
-			else strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "off");
-		AlgoidResponse[i].DINresponse.safetyStop_value = body.proximity[temp].safetyStop_value;
-	};
+		// Contrôle que le capteur soit pris en charge
+		if(AlgoidCommand.DINsens[i].id < NBDIN){
+			AlgoidResponse[i].value = body.proximity[temp].state;
+			if(body.proximity[temp].event_enable) strcpy(AlgoidResponse[i].DINresponse.event_state, "on");
+				else strcpy(AlgoidResponse[i].DINresponse.event_state, "off");
 
-
+			if(body.proximity[temp].safetyStop_state) strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "on");
+				else strcpy(AlgoidResponse[i].DINresponse.safetyStop_state, "off");
+			AlgoidResponse[i].DINresponse.safetyStop_value = body.proximity[temp].safetyStop_value;
+		} else
+			AlgoidResponse[i].value = -1;
+	//---
+	}
 	// Envoie de la réponse MQTT
 	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, RESPONSE, DINPUT, AlgoidCommand.msgValueCnt);
 	return (1);
@@ -875,50 +897,61 @@ int makeDistanceRequest(void){
 		AlgoidCommand.msgValueCnt=NBPWM;
 		for(i=0;i<NBPWM;i++){
 			AlgoidResponse[i].DISTresponse.id=i;
-//			AlgoidResponse[i].value=body.distance[i].value;
 		}
 	}else
-		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
+			// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
 				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.DISTsens[i].id;
-				// Activation de l'envoie de messages sur évenements
-				if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")){
-						body.distance[AlgoidCommand.DISTsens[i].id].event_enable=1;
-						saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
-				}
-				else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")){
-					body.distance[AlgoidCommand.DISTsens[i].id].event_enable=0;
-					removeHeaderOfMsgId(AlgoidCommand.msgID);
-				}
-				// Evemenent haut
-				if(AlgoidCommand.DISTsens[i].event_high!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_high=AlgoidCommand.DISTsens[i].event_high;
-				if(AlgoidCommand.DISTsens[i].event_low!=0) body.distance[AlgoidCommand.DISTsens[i].id].event_low=AlgoidCommand.DISTsens[i].event_low;
 
-				if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "on")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=1;
-				else if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "off")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=0;
-				body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_value = AlgoidCommand.DISTsens[i].safetyStop_value;
+				if(AlgoidCommand.DISTsens[i].id <NBPWM){
+
+					// Activation de l'envoie de messages sur évenements
+					if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "on")){
+							body.distance[AlgoidCommand.DISTsens[i].id].event_enable=1;
+							saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+					}
+					else if(!strcmp(AlgoidCommand.DISTsens[i].event_state, "off")){
+						body.distance[AlgoidCommand.DISTsens[i].id].event_enable=0;
+						removeHeaderOfMsgId(AlgoidCommand.msgID);
+					}
+
+					// Evemenent haut
+					if(AlgoidCommand.DISTsens[i].event_high!=0)
+						body.distance[AlgoidCommand.DISTsens[i].id].event_high=AlgoidCommand.DISTsens[i].event_high;
+					// Evemenent bas
+					if(AlgoidCommand.DISTsens[i].event_low!=0)
+						body.distance[AlgoidCommand.DISTsens[i].id].event_low=AlgoidCommand.DISTsens[i].event_low;
+
+					if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "on")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=1;
+					else if(!strcmp(AlgoidCommand.DISTsens[i].safetyStop_state, "off")) body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_state=0;
+					body.distance[AlgoidCommand.DISTsens[i].id].safetyStop_value = AlgoidCommand.DISTsens[i].safetyStop_value;
+				} else
+					AlgoidResponse[i].value = -1;
 			};
 
-	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+		// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 		// Récupération des paramètres actuels et chargement du buffer de réponse
 		int temp = AlgoidResponse[i].DISTresponse.id;
 
-		AlgoidResponse[i].value=body.distance[temp].value;
-		//AlgoidResponse[i].DISTresponse.angle=angle[AlgoidCommand.DISTsens[i].angle];
+		if(AlgoidCommand.DISTsens[i].id <NBPWM){
+			AlgoidResponse[i].value=body.distance[temp].value;
+			//AlgoidResponse[i].DISTresponse.angle=angle[AlgoidCommand.DISTsens[i].angle];
 
-		if(body.distance[temp].event_enable)strcpy(AlgoidResponse[i].DISTresponse.event_state, "on");
-		else strcpy(AlgoidResponse[i].DISTresponse.event_state, "off");
-		AlgoidResponse[i].DISTresponse.event_high=body.distance[temp].event_high;
-		AlgoidResponse[i].DISTresponse.event_low=body.distance[temp].event_low;
+			if(body.distance[temp].event_enable)strcpy(AlgoidResponse[i].DISTresponse.event_state, "on");
+			else strcpy(AlgoidResponse[i].DISTresponse.event_state, "off");
+			AlgoidResponse[i].DISTresponse.event_high=body.distance[temp].event_high;
+			AlgoidResponse[i].DISTresponse.event_low=body.distance[temp].event_low;
 
-		if(body.distance[temp].safetyStop_state)strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "on");
-		else strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "off");
-		AlgoidResponse[i].DISTresponse.safetyStop_value=body.distance[temp].safetyStop_value;
+			if(body.distance[temp].safetyStop_state)strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "on");
+			else strcpy(AlgoidResponse[i].DISTresponse.safetyStop_state, "off");
+			AlgoidResponse[i].DISTresponse.safetyStop_value=body.distance[temp].safetyStop_value;
+		} else
+			AlgoidResponse[i].value = -1;
 	};
 
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, RESPONSE, DISTANCE, AlgoidCommand.msgValueCnt);
 
 		return 1;
 }
@@ -939,55 +972,60 @@ int makeBatteryRequest(void){
 		AlgoidCommand.msgValueCnt=1;
 		for(i=0;i<2;i++){
 			AlgoidResponse[i].BATTesponse.id=i;
-//			AlgoidResponse[i].value=body.battery[i].value;
 		}
 	}else
-		// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
 			for(i=0;i<AlgoidCommand.msgValueCnt; i++){
-				AlgoidResponse[i].DISTresponse.id=AlgoidCommand.BATTsens[i].id;
-				// Recherche de paramètres supplémentaires
-				// Evenement activées
-				if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")){
-					body.battery[AlgoidCommand.BATTsens[i].id].event_enable=1;
-					saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
-				}
-				else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")){
-					body.battery[AlgoidCommand.BATTsens[i].id].event_enable=0;
-					removeHeaderOfMsgId(AlgoidCommand.msgID);
-				}
-				// Evemenent haut
-				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_high=AlgoidCommand.BATTsens[i].event_high;
-				if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_low=AlgoidCommand.BATTsens[i].event_low;
+				AlgoidResponse[i].BATTesponse.id=AlgoidCommand.BATTsens[i].id;
 
-				if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "on")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=1;
-				else if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "off")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=0;
-				if(AlgoidCommand.BATTsens[i].safetyStop_value!=0) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_value=AlgoidCommand.BATTsens[i].safetyStop_value;
+				if(AlgoidCommand.BATTsens[i].id <NBAIN){
+					// ENREGISTREMENT DES NOUVEAUX PARAMETRES RECUS
+					// Recherche de paramètres supplémentaires
+					// Evenement activées
+					if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "on")){
+						body.battery[AlgoidCommand.BATTsens[i].id].event_enable=1;
+						saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+					}
+					else if(!strcmp(AlgoidCommand.BATTsens[i].event_state, "off")){
+						body.battery[AlgoidCommand.BATTsens[i].id].event_enable=0;
+						removeHeaderOfMsgId(AlgoidCommand.msgID);
+					}
+					// Evemenent haut
+					if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_high=AlgoidCommand.BATTsens[i].event_high;
+					if(AlgoidCommand.BATTsens[i].event_high!=0) body.battery[AlgoidCommand.BATTsens[i].id].event_low=AlgoidCommand.BATTsens[i].event_low;
+
+					if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "on")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=1;
+					else if(!strcmp(AlgoidCommand.BATTsens[i].safetyStop_state, "off")) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_state=0;
+					if(AlgoidCommand.BATTsens[i].safetyStop_value!=0) body.battery[AlgoidCommand.BATTsens[i].id].safetyStop_value=AlgoidCommand.BATTsens[i].safetyStop_value;
+				}else
+					AlgoidResponse[i].value = -1;
 			};
 
-	// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 	for(i=0;i<AlgoidCommand.msgValueCnt; i++){
+		// RETOURNE EN REPONSE LES PARAMETRES ENREGISTRES
 		int temp = AlgoidResponse[i].BATTesponse.id;
 
-		AlgoidResponse[i].value=body.battery[temp].value;
+		if(AlgoidCommand.BATTsens[i].id <NBAIN){
+			AlgoidResponse[i].value=body.battery[temp].value;
 
-		if(body.battery[temp].event_enable){
-			strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
-			saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
-		}
-		else{
-			strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
-			removeHeaderOfMsgId(AlgoidCommand.msgID);
-		}
-		AlgoidResponse[i].BATTesponse.event_high=body.battery[temp].event_high;
-		AlgoidResponse[i].BATTesponse.event_low=body.battery[temp].event_low;
+			if(body.battery[temp].event_enable){
+				strcpy(AlgoidResponse[i].BATTesponse.event_state, "on");
+				saveSenderOfMsgId(AlgoidCommand.msgID, AlgoidMessageRX.msgFrom);
+			}
+			else{
+				strcpy(AlgoidResponse[i].BATTesponse.event_state, "off");
+				removeHeaderOfMsgId(AlgoidCommand.msgID);
+			}
+			AlgoidResponse[i].BATTesponse.event_high=body.battery[temp].event_high;
+			AlgoidResponse[i].BATTesponse.event_low=body.battery[temp].event_low;
 
-		if(body.battery[temp].safetyStop_state)strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "on");
-		else strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "off");
-		AlgoidResponse[i].BATTesponse.safetyStop_value=body.battery[temp].safetyStop_value;
+			if(body.battery[temp].safetyStop_state)strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "on");
+			else strcpy(AlgoidResponse[i].BATTesponse.safetyStop_state, "off");
+			AlgoidResponse[i].BATTesponse.safetyStop_value=body.battery[temp].safetyStop_value;
+		} else
+			AlgoidResponse[i].value = -1;
 	};
-
 	// Envoie de la réponse MQTT
-	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, BATTERY, AlgoidCommand.msgValueCnt);
+	sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, RESPONSE, BATTERY, AlgoidCommand.msgValueCnt);
 		return 1;
 }
 
@@ -1002,21 +1040,39 @@ void distanceEventCheck(void){
 	static unsigned char distWarningSended[1];
 	unsigned char i;
 	// Contrôle periodique des mesures de distances pour envoie d'evenement
-	for(i=0;i<2;i++){
+	for(i=0;i<NBPWM;i++){
 		// Vérification si envoie des EVENT activés
 		if(body.distance[i].event_enable){
-			if((body.distance[i].value < body.distance[i].event_low) || (body.distance[i].value > body.distance[i].event_high)){		// Mesure de distance hors plage
+
+			int event_low_disable, event_high_disable, distLowDetected, distHighDetected;
+
+			// Contrôle l' individuelle des evenements ( = si valeur < 0)
+			if(body.distance[i].event_low < 0) event_low_disable = 1;
+			else event_low_disable = 0;
+
+			if(body.distance[i].event_high < 0) event_high_disable = 1;
+			else event_high_disable = 0;
+
+			// Detection des seuils d'alarme
+			if(body.distance[i].value < body.distance[i].event_low) distLowDetected = 1;
+			else distLowDetected = 0;
+
+			if(body.distance[i].value > body.distance[i].event_high) distHighDetected = 1;
+			else distHighDetected = 0;
+
+			// Evaluation des alarmes à envoyer
+			if((distLowDetected && !event_low_disable) || (distHighDetected && !event_high_disable)){		// Mesure de distance hors plage
 				if(distWarningSended[i]==0){													// N'envoie l' event qu'une seule fois
 					AlgoidResponse[i].DISTresponse.id=i;
 					AlgoidResponse[i].value=body.distance[i].value;
-					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, NBPWM);
 					distWarningSended[i]=1;
 				}
 			}
 			else if (distWarningSended[i]==1){													// Mesure de distance revenu dans la plage
 					AlgoidResponse[i].DISTresponse.id=i;									// Et n'envoie qu'une seule fois le message
 					AlgoidResponse[i].value=body.distance[i].value;
-					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, 1);
+					sendResponse(AlgoidCommand.msgID, AlgoidCommand.msgFrom, EVENT, DISTANCE, NBPWM);
 					distWarningSended[i]=0;
 			}
 		}
@@ -1038,7 +1094,25 @@ void batteryEventCheck(void){
 	// Contrôle periodique des mesures de tension batterie pour envoie d'evenement
 	for(i=0;i<NBAIN;i++){
 		if(body.battery[i].event_enable){
-			if((body.battery[i].value < body.battery[i].event_low) || (body.battery[i].value > body.battery[i].event_high)){				// Mesure tension hors plage
+
+			int event_low_disable, event_high_disable, battLowDetected, battHighDetected;
+
+			// Contrôle l' individuelle des evenements ( = si valeur < 0)
+			if(body.battery[i].event_low < 0) event_low_disable = 1;
+			else event_low_disable = 0;
+
+			if(body.battery[i].event_high < 0) event_high_disable = 1;
+			else event_high_disable = 0;
+
+			// Detection des seuils d'alarme
+			if(body.battery[i].value < body.battery[i].event_low) battLowDetected = 1;
+			else battLowDetected = 0;
+
+			if(body.battery[i].value > body.battery[i].event_high) battHighDetected = 1;
+			else battHighDetected = 0;
+
+			// Evaluation des alarmes à envoyer
+			if((battLowDetected && !event_low_disable) || (battHighDetected && !event_high_disable)){				// Mesure tension hors plage
 				if(battWarningSended[i]==0){														// N'envoie qu'une seule fois l'EVENT
 					AlgoidResponse[i].BATTesponse.id=i;
 					AlgoidResponse[i].value=body.battery[i].value;
