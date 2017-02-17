@@ -4,6 +4,7 @@
 
 #define MILLISECOND   0
 #define CENTIMETER	  1
+#define CMPP		  0.723
 
 #include <unistd.h>
 #include <stdio.h>
@@ -83,6 +84,7 @@ struct m_counter{
 struct m_motor{
 	float distance;
 	float speed;
+	int direction;
 };
 
 typedef struct tsensor{
@@ -245,15 +247,15 @@ int main(void) {
 
 			batteryEventCheck();
 
-			body.motor[MOTOR_LEFT].speed=getMotorFrequency(MOTOR_LEFT)*0.36;
-			body.motor[MOTOR_RIGHT].speed=getMotorFrequency(MOTOR_RIGHT)*0.36;
+			body.motor[MOTOR_LEFT].speed= (getMotorFrequency(MOTOR_LEFT)*CMPP) * body.motor[MOTOR_LEFT].direction;
+			body.motor[MOTOR_RIGHT].speed=(getMotorFrequency(MOTOR_RIGHT)*CMPP) * body.motor[MOTOR_RIGHT].direction;
 
-			body.motor[MOTOR_LEFT].distance=getMotorPulses(MOTOR_LEFT)*0.285;
-			body.motor[MOTOR_RIGHT].distance=getMotorPulses(MOTOR_RIGHT)*0.285;
+			body.motor[MOTOR_LEFT].distance=getMotorPulses(MOTOR_LEFT)*CMPP;
+			body.motor[MOTOR_RIGHT].distance=getMotorPulses(MOTOR_RIGHT)*CMPP;
 
 
 			// est hors a plage spécifiée par les paramettre utilisateur
-
+//			printf("Pulses left: %d    right: %d\n", test[0], test[1]);
 			//printf("\nBattery: %d, safetyStop_state: %d safetyStop_value: %d", 0, body.battery[0].safetyStop_state, body.battery[0].safetyStop_value);
 //			printf("\nSpeed : G %.1f   D %.1f   ||| Dist G: %.1fcm  Dist D: %.1fcm",
 //					body.motor[MOTOR_LEFT].speed, body.motor[MOTOR_RIGHT].speed, body.motor[MOTOR_LEFT].distance, body.motor[MOTOR_RIGHT].distance);
@@ -515,12 +517,17 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 	int endOfTask;
 
 	// Conversion de la vélocité de -100...+100 en direction AVANCE ou RECULE
-	if(veloc > 0)
+	if(veloc > 0){
 		myDirection=BUGGY_FORWARD;
-	if(veloc == 0)
+		body.motor[wheelName].direction = 1;
+	}
+	if(veloc == 0){
 		myDirection=BUGGY_STOP;
+		body.motor[wheelName].direction = 0;
+	}
 	if(veloc < 0){
 		myDirection=BUGGY_BACK;
+		body.motor[wheelName].direction = -1;
 		veloc *=-1;					// Convertion en valeur positive
 	}
 
@@ -529,7 +536,7 @@ int setWheelAction(int actionNumber, int wheelName, int veloc, char unit, int va
 	switch(unit){
 		case  MILLISECOND:  setTimerResult=setTimerWheel(value, &endWheelAction, actionNumber, wheelName); break;
 		case  CENTIMETER:   //wheelNumber = getOrganNumber(wheelName);
-							body.encoder[wheelName].startEncoderValue=getMotorPulses(wheelName)*0.285;
+							body.encoder[wheelName].startEncoderValue=getMotorPulses(wheelName)*CMPP;
 							body.encoder[wheelName].stopEncoderValue = body.encoder[wheelName].startEncoderValue+ value;
 							//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", wheelNumber, distance, startEncoderValue[wheelNumber], stopEncoderValue[wheelNumber]);
 						    setTimerResult=setTimerWheel(50, &checkMotorEncoder, actionNumber, wheelName);			// Démarre un timer pour contrôle de distance chaque 35mS
@@ -645,7 +652,7 @@ int checkMotorEncoder(int actionNumber, int encoderName){
 	distance = getMotorPulses(encoderName);
 
 	if(distance >=0){
-		distance = (distance*0.285);
+		distance = (distance*CMPP);
     	usleep(2200);
 	}else  printf("\n ERROR: I2CBUS READ\n");
 	//printf("\n Encodeur #%d -> START %.2f cm  STOP %.2f cm", encoderNumber, startEncoderValue[encoderNumber], stopEncoderValue[encoderNumber]);

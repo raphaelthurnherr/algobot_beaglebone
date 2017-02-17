@@ -64,8 +64,8 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 	    {
 	    	// Verification de l'arrivée d'un message MQTT
 	    	if(mqttDataReady){
-	    	printf("\n-----------------------------\n");
-	    	printf("Nouveau message MQTT recu -> ");
+//printf("\n-----------------------------\n");
+//	    	printf("Nouveau message MQTT recu -> ");
 	    	//printf("[DEBUG] message: %s", MqttDataBuffer);
 	    	// RECEPTION DES DONNES UTILES
 				if(GetAlgoidMsg(AlgoidMessageRX, MqttDataBuffer)>0){
@@ -76,7 +76,7 @@ void *MessagerTask (void * arg){	 													// duty cycle is 50% for ePWM0A ,
 						if(lastMessage>=0){
 							// Retourne un ack a l'expediteur
 							sendResponse(AlgoidMessageRX.msgID, AlgoidMessageRX.msgFrom, ACK, AlgoidMessageRX.msgParam, 0);
-							printf("Mis en file d'attente\n");
+//							printf("Mis en file d'attente\n");
 						}
 						else{
 							printf("ERREUR: File d'attente pleine !\n");

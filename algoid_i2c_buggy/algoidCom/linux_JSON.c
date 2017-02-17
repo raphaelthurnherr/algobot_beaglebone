@@ -271,7 +271,7 @@ void ackToJSON(char * buffer, int msgId, char* to, char* from, char* msgType, ch
 							case DINPUT :
 											jwObj_int("din",AlgoidResponse[i].DINresponse.id);				// add object key:value pairs
 											if(AlgoidResponse[i].value >= 0){
-												jwObj_int( "State", AlgoidResponse[i].value);				// add object key:value pairs
+												jwObj_int( "state", AlgoidResponse[i].value);				// add object key:value pairs
 												jwObj_string("event", AlgoidResponse[i].DINresponse.event_state);				// add object key:value pairs
 												jwObj_string("safety_stop", AlgoidResponse[i].DINresponse.safetyStop_state);				// add object key:value pairs
 												jwObj_int("safety_value", AlgoidResponse[i].DINresponse.safetyStop_value);				// add object key:value pairs
@@ -283,11 +283,11 @@ void ackToJSON(char * buffer, int msgId, char* to, char* from, char* msgType, ch
 
 												switch(i){
 													case 0 :jwObj_int("din",AlgoidResponse[i].DINresponse.id);		// add object key:value pairs
-															jwObj_int( "State", AlgoidResponse[i].value);			// add object key:value pairs
+															jwObj_int( "state", AlgoidResponse[i].value);			// add object key:value pairs
 															break;
 
 													case 1 :jwObj_int("din",AlgoidResponse[i].DINresponse.id);		// add object key:value pairs
-															jwObj_int( "State", AlgoidResponse[i].value);			// add object key:value pairs
+															jwObj_int( "state", AlgoidResponse[i].value);			// add object key:value pairs
 															break;
 
 													case 2 :jwObj_int("battery",AlgoidResponse[i].BATTesponse.id);	// add object key:value pairs

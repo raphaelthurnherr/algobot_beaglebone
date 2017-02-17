@@ -93,7 +93,7 @@
 		"MsgParam" : "din",
 	        "MsgValue": [
            	 {"din": 1, "event":"on", "safety_stop" : "on", "safety_value" : 1},
-			 {"din": 0, "event":"off", "safety_stop" : "off", "safety_value" : 0},
+			 {"din": 0, "event":"off", "safety_stop" : "off", "safety_value" : 0}
         ]
 	}
 }
